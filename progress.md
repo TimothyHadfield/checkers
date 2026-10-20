@@ -36,6 +36,7 @@ Checkers is very drawish at the top (it is solved as a draw), so strong levels d
 
 ## Standing instructions (Tim's words)
 - "add risk, clue, battleship, connect four, stratego, clue, checkers, pandemic, splendor, king of tokyo, 7 wonders, and evolution to the list of games."
+- "add opptional sounds you can add to the games that reflect what's happening in the game accurately as well as win celebrations, and other fun annimations to go along with everything. Just make sure everything is customizable in the settings so the user can play as preffered." (2026-10-20)
 - From the briefs: odds/numbers where the decision is made; computer players at measured strength; a study mode (points lost, hint, best move afterwards); a real-table companion; dark phone-first look with the Hub tokens; $0; no copyrighted art or rulebook text.
 
 ## Traps
@@ -64,8 +65,25 @@ Turn shown as a warm pill on the player row; setup fits 393×659 and iPhone SE w
 Also fixed: Review said "No game yet" during a just-started game (now shows it, online too); puzzle attempts are stored (`pz.tried`), so a reload never says "First try!" after a wrong try.
 Verified with a WebKit script (scratchpad `design/checkers/shots.mjs`, before/after screenshots at 393×659, 1280×800, SE): both bugs reproduced before, gone after; no overflow, no console errors.
 
+## Sound, celebrations, animations (2026-10-20) — done
+`js/fx.js` = shared `_fx/fx.js` 1.0.3, copied unchanged (recopy when it changes; bump `?v=`). `js/sfx.js` = this game's event map + effects (node-tested in `tests/fx.test.js`). Settings tab → "Sound & effects" panel (`FX.renderSettings`, restyled in index.html `#fx-box` to the game's blue switches).
+| Event | Sound | Effect |
+|---|---|---|
+| Plain move (yours, computer, opponent, puzzle, analyze) | `slide` then `place` (wood) as it lands | existing slide |
+| Each jump of a capture | `capture`, pitch rises 7% per hop | taken piece lifts off |
+| Man crowned | `ding` after landing | crown drops in + piece pops |
+| Any capture | — | "+N" floats by the capturer's count |
+| Your multi-jump of 3+ | — | `celebrate big` |
+| Tap a piece that can't move / must-jump refused / bad drop | `error` | piece shakes |
+| Select a piece | `tap` | — |
+| Online: it becomes your turn | `turn` | your name pulses |
+| Game over | `celebrate win` (winner's colours) / `lose` / custom `draw` (two calm notes + end card pop) | |
+| Puzzle solved / wrong | `celebrate big` / `error` + board shake | |
+Computer/opponent moves use the same sounds at 0.85 volume. Animations off = `html.fx-still` (all CSS transitions/keyframes off, moves instant, sounds keep pace); Fast = `html.fx-fast`.
+
 ## NOT verified
-- On Tim's real iPhone (only Safari's engine at iPhone size, headless).
+- On Tim's real iPhone (only Safari's engine at iPhone size, headless). Sounds never heard by a person (headless WebKit on Windows has no Web Audio; Chromium counted 7 real plays).
+- Sounds/effects in a browser: only the play tab vs computer (error, double jump, crown, win) was driven; puzzles, analyze, online turn chime and draw sound are covered by node tests / code reading only.
 - FMJD 2024 extra 5-move rule (lone king on the long diagonal) not implemented.
 - Russian/Brazilian perft has no published table to compare with (engine and rules generator agree).
 - Strength numbers for the other rule sets (only American measured).

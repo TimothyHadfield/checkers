@@ -11,3 +11,9 @@
 - **Asked:** Tim: "once you're finished with all the games, review them again for design improvements especially visually." Plus three QA display bugs.
 - **Built:** CSS polish in index.html (turn pill, setup fit, centred desktop setup, game-over pop-in, clearer glows, bigger arrows and ? hit areas, laptop side text); app.js: Review board size on phone, Review during a fresh/online game, puzzle tries remembered.
 - **Verified:** before/after WebKit screenshots at 393×659, 1280×800, iPhone SE; bugs seen before, gone after; 38 node tests pass.
+
+## 2026-10-20 — sounds, celebrations, animations (builder for the portfolio manager)
+- **Asked:** Tim: "add opptional sounds ... win celebrations, and other fun annimations ... customizable in the settings".
+- **Built:** js/fx.js (shared 1.0.3, unchanged), js/sfx.js (event map), app.js hooks (move hops, lift-off, crown, +N, errors, online turn chime, end celebration, puzzle big), Sound & effects panel in Settings, fx-still/fx-fast CSS.
+- **Verified:** tests/fx.test.js failed without sfx.js, passes now (42/42 total); WebKit+Chromium page script (scratchpad design/checkers-fx/check.mjs): old build has no FX; new: error+shake, capture×2, ding, win; Sound off 0 real plays; Animations off 0 running animations; no console errors or overflow at 393 and 1280.
+- **Open:** Tim hearing it on his iPhone.

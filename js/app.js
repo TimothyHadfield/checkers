@@ -5,7 +5,23 @@
   const R = window.CkRules, L = window.CkLevels, E = window.CkEngine, OG = window.CkOnlineGame;
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const BUILD = '2026-10-20.2';
+  const BUILD = '2026-10-20.3';
+
+  // ================================================================== sounds + effects (js/fx.js, all switchable in Settings)
+  const FX = window.FX, SFX = window.CkSfx;
+  FX.init({ game: 'checkers', accent: '#6ea8fe' });
+  SFX.defineSounds(FX);
+  const later = (fn, ms) => setTimeout(fn, ms);
+  // Animations off: CSS transitions and keyframes stop too; Fast: the piece slide is quicker
+  const fxClass = () => { const h = document.documentElement.classList; h.toggle('fx-still', !FX.settings.animations); h.toggle('fx-fast', FX.settings.animSpeed === 'fast'); };
+  fxClass(); FX.onChange(fxClass);
+  const OTHER = 0.85; // the computer's / opponent's moves: the same sounds, a little quieter than yours
+  // a move heard but not slid (dropped, another tab, Animations off): the game-over sound waits until it has played
+  let soundsUntil = 0;
+  function moveSounds(m, vol) {
+    const p = SFX.playMove(FX, m, vol, later);
+    soundsUntil = Date.now() + (p.hops.length * SFX.HOP + 90) * SFX.speed(FX);
+  }
 
   // ================================================================== storage
   const KEY = 'checkers:v1';
@@ -206,32 +222,48 @@
     if (flip) { r = n - 1 - r; c = n - 1 - c; }
     return R.geo(n).idx[r * n + c];
   }
-  // slide a piece along its path; captured pieces fade as it passes
-  function animateMove(boardEl, move, cb) {
-    if (!boardEl || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { cb(); return; }
-    const el = boardEl.querySelector('.pc[data-sq="' + move.path[0] + '"]');
-    if (!el) { cb(); return; }
+  // slide a piece along its path with its sounds (wood, one capture per jump, a ding when crowned);
+  // a taken piece lifts off as the jumper passes. Animations off: no slide, the sounds keep their pace.
+  function animateMove(boardEl, move, cb, vol) {
+    vol = vol || 1;
+    const el = boardEl && SFX.fxOn(FX) ? boardEl.querySelector('.pc[data-sq="' + move.path[0] + '"]') : null;
+    if (!el) { moveSounds(move, vol); cb(); return; }
     const n = +boardEl.dataset.n, flip = boardEl.dataset.flip === '1', g = R.geo(n), cell = 100 / n;
     const caps = move.caps.map(c => boardEl.querySelector('.pc[data-sq="' + c + '"]'));
+    const p = SFX.plan(move), sp = SFX.speed(FX);
     el.style.zIndex = 3;
     let i = 1;
     const step = () => {
-      if (i >= move.path.length) { setTimeout(cb, 70); return; }
+      if (i >= move.path.length) { setTimeout(() => { SFX.endSounds(FX, p, vol); cb(); }, 70 * sp); return; }
       const s = move.path[i];
       let r = g.rc[s][0], c = g.rc[s][1];
       if (flip) { r = n - 1 - r; c = n - 1 - c; }
       el.style.left = c * cell + '%'; el.style.top = r * cell + '%';
+      SFX.hopSounds(FX, p, i - 1, vol, later);
       const ce = caps[i - 1];
-      if (ce) setTimeout(() => ce.classList.add('gone'), 120);
+      if (ce) setTimeout(() => SFX.liftOff(FX, ce), 120 * sp);
       i++;
-      setTimeout(step, 200);
+      setTimeout(step, SFX.HOP * sp);
     };
     requestAnimationFrame(step);
+  }
+  // after a move is drawn in its new place: the crown, "+N" by the capturer's count, a big multi-jump
+  function afterMoveFx(m, mover, mine) {
+    if (!m || ui.tab !== 'play') return;
+    const b = document.querySelector('.board[data-board="play"]');
+    SFX.afterMove(FX, m, { piece: b && b.querySelector('.pc[data-sq="' + m.path[m.path.length - 1] + '"]'),
+      count: document.querySelector('#v-play .pl[data-side="' + mover + '"] .cap'), mine });
+  }
+  // a refused tap: the soft error sound and a shake of the piece
+  function refuse(sq, boardId) {
+    FX.play('error');
+    const el = document.querySelector('.board[data-board="' + (boardId || 'play') + '"] .pc[data-sq="' + sq + '"]');
+    if (el) FX.shake(el);
   }
 
   // ================================================================== tabs + help bubbles
   const ui = {
-    tab: 'play', online: false, sel: null, gen: 0, thinking: false, roots: {}, shown: null, hint: null, anim: false,
+    tab: 'play', online: false, sel: null, gen: 0, ended: {}, thinking: false, roots: {}, shown: null, hint: null, anim: false,
     rv: { ply: 0, key: '' }, an: { mode: 'move', pal: 1, res: null, key: '' }, pz: { i: 0, state: null, done: false, msg: '', line: null },
   };
   $('#tabs').addEventListener('click', e => {
@@ -401,7 +433,7 @@
     const toMove = !st.result && (st.offer >= 0 ? 1 - st.offer : st.turn) === side;
     let caps = '';
     for (let i = 0; i < Math.min(lostOther, 8); i++) caps += '<svg viewBox="0 0 100 100"><use href="#' + pieceSym(st.variant, 1 - side) + '"/></svg>';
-    return '<div class="pl' + (toMove ? ' turn' : '') + (c.away[side] ? ' away' : '') + '">' + disc(st.variant, side) +
+    return '<div class="pl' + (toMove ? ' turn' : '') + (c.away[side] ? ' away' : '') + '" data-side="' + side + '">' + disc(st.variant, side) +
       '<span class="nm">' + esc(c.names[side]) + '</span><span class="sub">' + (m.men + m.kings) + ' left' + (m.kings ? ' · ' + m.kings + ' king' + (m.kings > 1 ? 's' : '') : '') + (c.away[side] ? ' · away' : '') + '</span>' +
       '<span class="cap">' + caps + (lostOther ? '<b>' + lostOther + '</b>' : '') + '</span></div>';
   }
@@ -494,6 +526,16 @@
       const ml = $('#mlist'); if (ml) ml.scrollTop = ml.scrollHeight;
     }
     ui.shown = { key: gameKey(c), ply: st.ply, st };
+    // game over (seen for the first time, not on reload): win / lose / draw for this player
+    const k = gameKey(c), over = !!st.result;
+    if (!ui.anim) {
+      const was = ui.ended[k];
+      ui.ended[k] = over;
+      if (over && was === false) {
+        const r = st.result, win = r.winner != null ? sideName(st.variant, r.winner) : null;
+        later(() => SFX.celebrateEnd(FX, r, c.mode, c.my, win, vPlay.querySelector('.endcard .panel')), Math.max(0, soundsUntil - Date.now()));
+      }
+    }
   }
   function pvText(st, pv) {
     let s = st, out = [];
@@ -573,6 +615,7 @@
       const legal = R.legal(c.st).filter(m => m.path[0] === d.s && m.path[m.path.length - 1] === to);
       if (legal.length === 1) { ui.sel = null; playMove(c, legal[0], true); return; }
       d.el.classList.remove('drag'); d.el.style.transform = '';
+      if (!legal.length && to >= 0 && to !== d.s) FX.play('error');
       ui.sel = { from: d.s, prefix: [d.s] };
       if (legal.length > 1) { ui.sel.prefix = [d.s]; toast('Two ways to get there: tap the first landing square'); }
       renderPlay();
@@ -609,9 +652,11 @@
           toast('You must jump');
           legal.forEach(m => { const el = document.querySelector('.board[data-board="play"] .pc[data-sq="' + m.path[0] + '"]'); if (el) el.classList.add('must'); });
         } else toast('That piece can’t move');
+        refuse(s);
         return;
       }
       ui.sel = { from: s, prefix: [s] };
+      FX.play('tap');
       renderPlay(); return;
     }
     if (ui.sel) { ui.sel = null; renderPlay(); }
@@ -624,7 +669,7 @@
       net.busy = true;
       const boardEl = document.querySelector('.board[data-board="play"]');
       const go = () => net.room.act({ path: m.path }).then(r => { if (!r.ok) { net.busy = false; toast(r.message || 'Move not sent'); renderPlay(); } });
-      if (dropped) go(); else { ui.anim = true; animateMove(boardEl, m, () => { ui.anim = false; go(); }); }
+      if (dropped) { moveSounds(m, 1); go(); } else { ui.anim = true; animateMove(boardEl, m, () => { ui.anim = false; go(); }); }
       return;
     }
     const next = R.act(c.st, c.st.turn, { path: m.path });
@@ -634,15 +679,15 @@
   function commit(next, m, dropped) {
     const g = store.game;
     if (!g) return;
-    const prevPly = g.st.ply;
+    const prevPly = g.st.ply, mover = g.st.turn, mine = g.mode === 'two' || mover === g.my;
     g.st = next;
     if (next.result) finishGame();
     save();
     const boardEl = document.querySelector('.board[data-board="play"]');
-    const done = () => { ui.anim = false; gradeIfReady(g, prevPly); renderPlay(); afterChange(); };
-    if (dropped || !m || ui.tab !== 'play') { done(); return; }
+    const done = () => { ui.anim = false; gradeIfReady(g, prevPly); renderPlay(); afterMoveFx(m, mover, mine); afterChange(); };
+    if (dropped || !m || ui.tab !== 'play') { if (m) moveSounds(m, mine ? 1 : OTHER); done(); return; }
     ui.anim = true;
-    animateMove(boardEl, m, done);
+    animateMove(boardEl, m, done, mine ? 1 : OTHER);
   }
   function finishGame() {
     const g = store.game;
@@ -817,6 +862,7 @@
   }
   function onNet(snap) {
     const prev = net.snap;
+    let post = () => {}, turnFx = () => {};
     net.snap = snap;
     const playing = snap.status === 'playing' || snap.status === 'finished';
     if (snap.status === 'closed' || snap.status === 'left') {
@@ -833,18 +879,27 @@
         store.last = { st, mode: 'online', level: 0, my: snap.mySeat >= 0 ? OG.sideOf(snap.pub, snap.mySeat) : 0, anal: ui.onlineAnal || {}, started: Date.now() };
         save();
       }
-      // slide the other player's move before redrawing
-      if (oldSt && st.moves.length === oldSt.moves.length + 1 && ui.tab === 'play' && !ui.anim) {
+      // it just became my turn (not on a reload): the your-turn chime, and my name pulses
+      const chime = !!(snap.myTurn && !st.result && prev && !prev.myTurn);
+      turnFx = () => { if (!chime) return; FX.play('turn'); const nm = ui.tab === 'play' && vPlay.querySelector('.pl.turn .nm'); if (nm) FX.pulse(nm); };
+      // slide the other player's move before redrawing (with its sounds); my own move sounded when I made it
+      if (oldSt && st.moves.length === oldSt.moves.length + 1) {
         const m = R.findMove(oldSt, st.moves[st.moves.length - 1]);
-        const myLast = snap.mySeat >= 0 && sideAt(st, st.moves.length - 1) === OG.sideOf(snap.pub, snap.mySeat);
+        const mover = sideAt(st, st.moves.length - 1);
+        const myLast = snap.mySeat >= 0 && mover === OG.sideOf(snap.pub, snap.mySeat);
         if (m && !myLast) {
-          ui.anim = true;
-          animateMove(document.querySelector('.board[data-board="play"]'), m, () => { ui.anim = false; renderPlay(); afterChange(); });
-          return;
+          if (ui.tab === 'play' && !ui.anim) {
+            ui.anim = true;
+            animateMove(document.querySelector('.board[data-board="play"]'), m, () => { ui.anim = false; renderPlay(); afterMoveFx(m, mover, false); turnFx(); afterChange(); }, OTHER);
+            return;
+          }
+          moveSounds(m, OTHER);
         }
+        if (m) post = () => afterMoveFx(m, mover, myLast);
       }
     }
-    if (ui.tab === 'play') renderPlay();
+    if (ui.tab === 'play') { renderPlay(); post(); }
+    turnFx();
     if (playing) afterChange();
   }
   function leaveOnline() {
@@ -1211,8 +1266,8 @@
       }
     }
     const x = st.board[s];
-    if (x && (x > 0) === (st.turn === 0) && legal.some(m => m.path[0] === s)) { ui.an.sel = s; renderAnalyze(); return; }
-    if (x && (x > 0) === (st.turn === 0) && legal.length && legal[0].caps.length) toast('A jump is compulsory');
+    if (x && (x > 0) === (st.turn === 0) && legal.some(m => m.path[0] === s)) { ui.an.sel = s; FX.play('tap'); renderAnalyze(); return; }
+    if (x && (x > 0) === (st.turn === 0) && legal.length && legal[0].caps.length) { toast('A jump is compulsory'); FX.play('error'); }
     ui.an.sel = null; renderAnalyze();
   });
 
@@ -1285,21 +1340,24 @@
             ui.pz.tries++; save();
             ui.pz.msg = '<span class="grade g-mistake">Not quite</span> That lets the win slip. Try again.';
             ui.pz.state = R.newGame(p.v, { board: pzBoard(p), turn: p.t });
-            renderPuzzles(); return;
+            renderPuzzles();
+            FX.play('error'); FX.shake(vPz.querySelector('.board-wrap'));
+            return;
           }
           store.pz.solved[p.id] = 1; save();
           ui.pz.state = R.act(st, st.turn, { path: m.path });
           ui.pz.done = true;
           ui.pz.msg = '<span class="grade g-best">Correct</span> ' + (ui.pz.tries || before ? '' : 'First try! ') + 'Here is how it goes on…';
           renderPuzzles();
+          FX.celebrate({ kind: 'big', at: vPz.querySelector('.board-wrap') });
           playLine(p, 1);
         });
         return;
       }
     }
     const x = st.board[s];
-    if (x && (x > 0) === (st.turn === 0) && legal.some(m => m.path[0] === s)) { ui.pz.sel = s; renderPuzzles(); return; }
-    if (x && (x > 0) === (st.turn === 0) && legal.length && legal[0].caps.length && V(st.variant).mandatory) toast('A jump is compulsory');
+    if (x && (x > 0) === (st.turn === 0) && legal.some(m => m.path[0] === s)) { ui.pz.sel = s; FX.play('tap'); renderPuzzles(); return; }
+    if (x && (x > 0) === (st.turn === 0) && legal.length && legal[0].caps.length && V(st.variant).mandatory) { toast('A jump is compulsory'); FX.play('error'); }
     ui.pz.sel = null; renderPuzzles();
   });
   // replay the rest of the winning line slowly
@@ -1340,12 +1398,14 @@
     vSet.innerHTML = '<div class="set scroll">' +
       '<div class="panel">' + sw('coach', 'Coach', 'Score bar, move grades and the Hint button') + sw('dots', 'Show moves', 'Dots where the selected piece can go') +
       sw('numbers', 'Square names', 'Numbers or letters on the board, as in books') + sw('turnBoard', 'Turn the board', 'Two players: the side to move is at the bottom') + '</div>' +
+      '<div class="panel" id="fx-box"><span class="label">Sound &amp; effects</span></div>' +
       '<div class="panel"><div class="row"><span class="label grow">How strong is the computer?</span>' + qBtn('Each level searches a fixed number of positions, so it plays the same on any device. Weaker levels also add random mistakes. The table is real games between the levels.') + '</div>' + strength + '</div>' +
       '<div class="panel"><div class="row"><span class="label grow">Rules compared</span>' + qBtn('Checkers was solved in 2007 (Schaeffer et al., Science): with perfect play, American checkers is a draw. Every rule set here follows the official rules; tap a name for the details.') + '</div>' +
       '<div class="rtwrap"><table class="rt"><thead><tr><th></th>' + R.VARIANT_IDS.map(id => '<th><button class="btn small ghost" data-rules="' + id + '" style="padding:0 4px;min-height:28px">' + esc(V(id).name) + '</button></th>').join('') + '</tr></thead><tbody>' +
       rows.map(r => '<tr><td>' + r[0] + '</td>' + R.VARIANT_IDS.map(id => '<td>' + esc(r[1](id)) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div></div>' +
       '<div class="panel"><div class="setrow"><div class="grow"><b>Online play</b><span>Friends on their own phones, or a computer in the other seat.</span></div><button class="btn small" data-online>Open</button></div></div>' +
       '<p class="ver">Build ' + BUILD + ' · <a href="../">More games</a></p></div>';
+    FX.renderSettings($('#fx-box'));
   }
   vSet.addEventListener('change', e => {
     const k = e.target.dataset.sw;
