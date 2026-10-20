@@ -21,7 +21,8 @@ const MUTANTS = [
 ];
 
 let bad = 0;
-for (const [name, file, from, to] of MUTANTS) {
+const only = process.argv[2]; // optional: run only mutations whose name contains this text
+for (const [name, file, from, to] of MUTANTS.filter(m => !only || m[0].includes(only))) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ck-mut-'));
   for (const sub of ['js', 'tests']) fs.cpSync(path.join(ROOT, sub), path.join(dir, sub), { recursive: true });
   const f = path.join(dir, file);
@@ -35,5 +36,5 @@ for (const [name, file, from, to] of MUTANTS) {
   console.log((failed.length ? 'CAUGHT ' : 'MISSED ') + name + (failed.length ? ' -> ' + failed.join(' | ') : ''));
   fs.rmSync(dir, { recursive: true, force: true });
 }
-console.log(bad ? bad + ' mutation(s) not caught' : 'all ' + MUTANTS.length + ' mutations caught');
+console.log(bad ? bad + ' mutation(s) not caught' : 'all mutations run were caught');
 process.exit(bad ? 1 : 0);
