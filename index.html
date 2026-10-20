@@ -8,6 +8,7 @@
 <meta name="theme-color" content="#0f1117">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="css/table.css?v=1">
 <style>
   :root {
     --bg: #0f1117; --bg-soft: #161923; --card: #1a1e2b; --line: #2a3042;
@@ -94,12 +95,21 @@
   .menu-list .btn { justify-content: flex-start; width: 100%; }
 
   /* ---------------------------------------------------------------- the board */
-  .board-wrap { position: relative; flex: none; }
-  .board { position: relative; width: 100%; aspect-ratio: 1; border-radius: 6px; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none;
-    background: var(--sq-light); box-shadow: 0 0 0 4px var(--frame), 0 8px 24px rgba(0,0,0,.5); }
-  .board .sq { position: absolute; background: var(--sq-dark); }
-  .board .sq.last { background: #a8783f; }
-  .board .sq.from { background: #b98b45; }
+  /* a real wooden board: walnut frame with a bevel and a thin inlay line, maple and walnut squares with grain,
+     sitting on the table with its own shadow */
+  .board-wrap { position: relative; flex: none; padding: var(--rim); border-radius: 7px;
+    --rim: 9px; --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='w'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.006 .16' numOctaves='3' seed='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .2 0 0 0 0 .1 0 0 0 0 0 0 0 0 .9 -.32'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23w)'/%3E%3C/svg%3E");
+    --grain-l: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='w'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.008 .19' numOctaves='3' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .85 0 0 0 0 .6 0 0 0 0 .38 0 0 0 .8 -.38'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23w)'/%3E%3C/svg%3E");
+    background: var(--grain) 0 0 / 100% 60px, linear-gradient(135deg, #7a4a2a, #5a3219 45%, #4a2812);
+    box-shadow: inset 0 1px 0 rgba(255,215,160,.35), inset 0 -2px 2px rgba(0,0,0,.45), inset 1px 0 0 rgba(255,215,160,.15),
+      0 2px 0 #2c170a, 0 3px 0 #22120a, 0 12px 26px rgba(0,0,0,.55), 0 3px 6px rgba(0,0,0,.4); }
+  @media (min-width: 900px) { .board-wrap { --rim: 13px; } }
+  .board { position: relative; width: 100%; aspect-ratio: 1; border-radius: 1px; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none;
+    background: linear-gradient(rgba(227,207,168,.55), rgba(227,207,168,.55)), var(--grain) 0 0 / 100% 70%, var(--sq-light); box-shadow: 0 0 0 1.5px #d9b77d, 0 0 0 3px #3a1f0c, inset 0 0 6px rgba(60,30,0,.25); }
+  .board .sq { position: absolute; --g: var(--grain-l) var(--gx, 0) var(--gy, 0) / 900% 300%, var(--grain) var(--gy, 0) var(--gx, 0) / 900% 300%;
+    background: var(--g), var(--sq-dark); box-shadow: inset 0 0 0 .5px rgba(40,18,4,.35); }
+  .board .sq.last { background: var(--g), #a8783f; }
+  .board .sq.from { background: var(--g), #b98b45; }
   .board .sq .no { position: absolute; left: 3%; top: 1%; font-size: clamp(7px, 1.9vmin, 11px); color: rgba(255,240,220,.6); font-weight: 650; pointer-events: none; }
   .board .dot { position: absolute; border-radius: 50%; pointer-events: none; background: rgba(110,168,254,.9); box-shadow: 0 0 0 3px rgba(110,168,254,.25); transform: translate(-50%, -50%); width: calc(var(--cell) * .3); height: calc(var(--cell) * .3); animation: dotin .14s ease-out; }
   .board .dot.cap { background: rgba(240,140,140,.95); box-shadow: 0 0 0 3px rgba(240,140,140,.3); }
@@ -107,14 +117,16 @@
   @keyframes dotin { from { transform: translate(-50%, -50%) scale(.3); opacity: 0; } to { transform: translate(-50%, -50%); opacity: 1; } }
   .board .pc { position: absolute; pointer-events: none; transition: left .17s ease-in-out, top .17s ease-in-out, opacity .2s, transform .12s; will-change: left, top; }
   .board .pc svg { width: 100%; height: 100%; display: block; overflow: visible; }
-  .board .pc.sel { transform: scale(1.1); filter: drop-shadow(0 0 5px rgba(240,179,84,.95)); }
+  .board .pc.sel { transform: translateY(-6%) scale(1.1); filter: drop-shadow(0 0 5px rgba(240,179,84,.95)) drop-shadow(0 6px 4px rgba(0,0,0,.35)); }
+  .board .pc.gone-now { opacity: 0; transition: none; }
   .board .pc.can { filter: drop-shadow(0 0 3px rgba(110,168,254,1)) drop-shadow(0 0 7px rgba(110,168,254,.8)); }
   .board .pc.must { animation: must 0.5s ease-in-out 2; }
   @keyframes must { 50% { transform: scale(1.14); filter: drop-shadow(0 0 7px rgba(240,140,140,1)); } }
   .board .pc.gone { opacity: 0; transform: scale(.6); }
   .board .pc.drag { transition: none; z-index: 5; transform: scale(1.15); }
-  .board .pc.crowned svg .crownuse { animation: crownin .35s ease-out; transform-origin: 50% 50%; }
-  @keyframes crownin { from { transform: scale(.2) translateY(-30px); opacity: 0; } to { transform: none; opacity: 1; } }
+  /* crowned: a second checker is set on top of the man */
+  .board .pc.crowned svg .crownuse { animation: crownin .38s cubic-bezier(.3,.6,.4,1.15); transform-box: fill-box; transform-origin: 50% 50%; }
+  @keyframes crownin { from { transform: translateY(-45%) scale(1.18); opacity: 0; } 60% { opacity: 1; } to { transform: none; opacity: 1; } }
   /* Sound & effects settings: Fast speed slides quicker; Animations off stops every transition and keyframe */
   .fx-fast .board .pc { transition-duration: .09s, .09s, .11s, .07s; }
   .fx-fast .board .pc.crowned svg .crownuse { animation-duration: .2s; }
@@ -147,9 +159,35 @@
   .palette .disc { width: 26px; height: 26px; }
   .pl .nm { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; padding-right: 8px; margin-right: -8px; }
   .pl .sub { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
-  .pl .cap { display: flex; align-items: center; gap: 1px; margin-left: auto; flex: none; }
-  .pl .cap svg { width: 16px; height: 16px; margin-left: -5px; }
-  .pl .cap b { font-size: 13.5px; margin-left: 5px; color: var(--text); font-variant-numeric: tabular-nums; }
+  /* the checkers each player has taken, stacked on the table in front of them */
+  .pl .cap { display: flex; align-items: flex-end; gap: 3px; margin-left: auto; flex: none; --pz: 22px; }
+  .pl .cap .stk { position: relative; width: var(--pz); height: calc(var(--pz) * .9 + (var(--n) - 1) * 3.5px); flex: none; }
+  .pl .cap .stk svg { position: absolute; left: 0; bottom: calc(var(--i) * 3.5px); width: var(--pz); height: var(--pz); }
+  .pl .cap .stk::before { content: ""; position: absolute; left: 6%; right: -8%; bottom: -2px; height: 9px; border-radius: 50%; background: rgba(0,0,0,.45); filter: blur(2px); }
+  .pl .cap b { font-size: 13.5px; margin-left: 5px; color: var(--text); font-variant-numeric: tabular-nums; align-self: center; }
+  @media (min-width: 900px) { .pl .cap { --pz: 26px; } }
+  /* on the table the player rows are the players' places: no box, name plate lit when it's their turn */
+  .tbl-surface .pl { background: transparent; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+  .tbl-surface .pl.turn { background: rgba(20,10,4,.35); box-shadow: inset 0 0 0 1px rgba(240,179,84,.55), 0 0 12px rgba(240,179,84,.18); }
+  .tbl-surface .pl .sub { color: #cbbfa8; }
+  /* the helpers float over the table like smoked glass, so the wood shows through */
+  .tbl-surface .coach, .tbl-surface .offerbar, .tbl-surface #g-side .panel.pv { background: rgba(18,12,8,.58); border-color: rgba(255,230,190,.16); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+  .tbl-surface .q { background: rgba(18,12,8,.5); border-color: rgba(255,230,190,.25); color: #d9cbb0; }
+  .tbl-surface .endcard { background: rgba(10,6,3,.3); }
+  .tbl-surface .endcard .panel { background: rgba(18,12,8,.78); border-color: rgba(255,230,190,.2); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+  .tbl-surface .endcard .btn:not(.primary) { background: rgba(255,240,215,.08); border-color: rgba(255,230,190,.22); }
+  .tbl-surface .acts .btn:not(.primary) { background: rgba(18,12,8,.58); border-color: rgba(255,230,190,.18); }
+  /* laptop: the move list is a paper scoresheet lying beside the board */
+  .tbl-surface #g-side .panel.sheetpaper { background: linear-gradient(rgba(255,255,255,.35), transparent 30%), #f3ecdc; border: 0; color: #2a2118; border-radius: 3px;
+    box-shadow: 0 1px 1px rgba(0,0,0,.25), 0 8px 18px rgba(0,0,0,.4); transform: rotate(.6deg); }
+  .tbl-surface #g-side .sheetpaper .label, .tbl-surface #g-side .sheetpaper .muted { color: #7d6d58; }
+  .tbl-surface #g-side .sheetpaper table.moves td { border-top-color: rgba(60,90,160,.28); }
+  .tbl-surface #g-side .sheetpaper table.moves td.n { color: #9a8a74; }
+  .tbl-surface #g-side .sheetpaper table.moves td.cur { background: rgba(110,140,220,.2); }
+  /* phone held sideways: board on the left, the players and helpers beside it (no page scroll) */
+  #game.land { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-auto-rows: min-content; align-content: center; column-gap: 14px; row-gap: 6px; }
+  #game.land > * { grid-column: 2; width: auto !important; }
+  #game.land > .board-wrap { grid-column: 1; grid-row: 1 / span 6; align-self: center; width: var(--bw) !important; }
   .pl.turn .nm::after { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-warm); margin-left: 7px; vertical-align: 1px; box-shadow: 0 0 6px var(--accent-warm); }
   .pl.away { opacity: .55; }
   .coach { display: flex; align-items: center; gap: 8px; min-height: 36px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 4px 10px; font-size: 13.5px; overflow: hidden; }
@@ -271,21 +309,33 @@
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
-    <radialGradient id="gD" cx="38%" cy="32%" r="75%"><stop offset="0" stop-color="#5a5e6b"/><stop offset=".55" stop-color="#2a2c34"/><stop offset="1" stop-color="#121318"/></radialGradient>
-    <radialGradient id="gL" cx="38%" cy="32%" r="75%"><stop offset="0" stop-color="#fffdf6"/><stop offset=".6" stop-color="#eee3c8"/><stop offset="1" stop-color="#c9b78f"/></radialGradient>
+    <!-- real checkers: a 32 mm disc ~9 mm thick, fluted rim, ringed top face, its side wall seen from the player's seat;
+         a king is two discs stacked (pieceSVG in app.js) -->
+    <radialGradient id="gD" cx="40%" cy="34%" r="72%"><stop offset="0" stop-color="#4c4f59"/><stop offset=".55" stop-color="#26282f"/><stop offset="1" stop-color="#141519"/></radialGradient>
+    <radialGradient id="gL" cx="40%" cy="34%" r="72%"><stop offset="0" stop-color="#fffdf5"/><stop offset=".6" stop-color="#efe4c9"/><stop offset="1" stop-color="#d3c19a"/></radialGradient>
+    <linearGradient id="wD" x1="0" x2="1"><stop offset="0" stop-color="#070708"/><stop offset=".35" stop-color="#2a2c33"/><stop offset=".7" stop-color="#16171b"/><stop offset="1" stop-color="#050506"/></linearGradient>
+    <linearGradient id="wL" x1="0" x2="1"><stop offset="0" stop-color="#8d7a55"/><stop offset=".35" stop-color="#e2d3b1"/><stop offset=".7" stop-color="#bfab83"/><stop offset="1" stop-color="#7d6b48"/></linearGradient>
+    <radialGradient id="gSh"><stop offset=".62" stop-color="#000" stop-opacity=".5"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+    <symbol id="sh" viewBox="0 0 100 100"><ellipse cx="53" cy="58" rx="46" ry="43" fill="url(#gSh)"/></symbol>
     <symbol id="pD" viewBox="0 0 100 100">
-      <ellipse cx="51" cy="55" rx="43" ry="41" fill="#000" opacity=".38"/>
-      <circle cx="50" cy="50" r="42" fill="url(#gD)" stroke="#08080a" stroke-width="2.5"/>
-      <circle cx="50" cy="50" r="33" fill="none" stroke="#6b7080" stroke-width="2.4" opacity=".55"/>
-      <circle cx="50" cy="50" r="27.5" fill="none" stroke="#000" stroke-width="1.6" opacity=".55"/>
-      <path d="M24 34 A30 30 0 0 1 46 20" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".18"/>
+      <circle cx="50" cy="52" r="38" fill="url(#wD)" stroke="#000" stroke-width="1.2"/>
+      <circle cx="50" cy="52" r="37.4" fill="none" stroke="#4a4d57" stroke-width="1.2" stroke-dasharray="1 2.4" opacity=".45"/>
+      <circle cx="50" cy="47" r="38" fill="url(#gD)" stroke="#0a0a0c" stroke-width="1.4"/>
+      <circle cx="50" cy="47" r="35" fill="none" stroke="#4b4f5a" stroke-width="4.5" stroke-dasharray="1.2 1.7" opacity=".7"/>
+      <circle cx="50" cy="47" r="30.5" fill="none" stroke="#000" stroke-width="1.3" opacity=".6"/>
+      <circle cx="50" cy="47" r="25" fill="none" stroke="#5b606c" stroke-width="1.6" opacity=".55"/>
+      <circle cx="50" cy="47" r="19" fill="none" stroke="#000" stroke-width="1" opacity=".45"/>
+      <path d="M25 33 A29 29 0 0 1 45 20" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".16"/>
     </symbol>
     <symbol id="pL" viewBox="0 0 100 100">
-      <ellipse cx="51" cy="55" rx="43" ry="41" fill="#000" opacity=".38"/>
-      <circle cx="50" cy="50" r="42" fill="url(#gL)" stroke="#8f7c55" stroke-width="2.5"/>
-      <circle cx="50" cy="50" r="33" fill="none" stroke="#b8a47b" stroke-width="2.4" opacity=".8"/>
-      <circle cx="50" cy="50" r="27.5" fill="none" stroke="#fff" stroke-width="1.6" opacity=".7"/>
-      <path d="M24 34 A30 30 0 0 1 46 20" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".6"/>
+      <circle cx="50" cy="52" r="38" fill="url(#wL)" stroke="#6f5d3c" stroke-width="1.2"/>
+      <circle cx="50" cy="52" r="37.4" fill="none" stroke="#fff6df" stroke-width="1.2" stroke-dasharray="1 2.4" opacity=".35"/>
+      <circle cx="50" cy="47" r="38" fill="url(#gL)" stroke="#9c8862" stroke-width="1.4"/>
+      <circle cx="50" cy="47" r="35" fill="none" stroke="#c7b48c" stroke-width="4.5" stroke-dasharray="1.2 1.7" opacity=".85"/>
+      <circle cx="50" cy="47" r="30.5" fill="none" stroke="#a8946b" stroke-width="1.3" opacity=".7"/>
+      <circle cx="50" cy="47" r="25" fill="none" stroke="#fff" stroke-width="1.6" opacity=".75"/>
+      <circle cx="50" cy="47" r="19" fill="none" stroke="#b9a57d" stroke-width="1" opacity=".6"/>
+      <path d="M25 33 A29 29 0 0 1 45 20" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".7"/>
     </symbol>
     <symbol id="crown" viewBox="0 0 100 100">
       <path d="M29 61 L25 37 L39 49 L50 31 L61 49 L75 37 L71 61 Z" fill="#f0b354" stroke="#7a4f0e" stroke-width="2.6" stroke-linejoin="round"/>
@@ -316,8 +366,9 @@
 <script src="js/levels.js?v=1"></script>
 <script src="js/puzzles.js?v=1"></script>
 <script src="js/online-game.js?v=1"></script>
-<script src="js/fx.js?v=3"></script>
+<script src="js/fx.js?v=4"></script>
+<script src="js/table.js?v=1"></script>
 <script src="js/sfx.js?v=3"></script>
-<script src="js/app.js?v=4"></script>
+<script src="js/app.js?v=5"></script>
 </body>
 </html>

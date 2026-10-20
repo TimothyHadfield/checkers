@@ -91,7 +91,26 @@
   const V = id => R.V(id);
   const sideName = (variant, side) => V(variant).sides[side];
   const pieceSym = (variant, side) => (V(variant).sides[side] === 'Black' ? 'pD' : 'pL');
-  const disc = (variant, side, king) => '<svg class="disc" viewBox="0 0 100 100"><use href="#' + pieceSym(variant, side) + '"/>' + (king ? '<use href="#crown"/>' : '') + '</svg>';
+  // a real checker seen from the player's seat: contact shadow, side wall, ringed top; a king is a second checker
+  // stacked on the first (the top one carries a stamped crown)
+  const pieceSVG = (sym, king, cls) => '<svg viewBox="0 0 100 100"' + (cls ? ' class="' + cls + '"' : '') + '><use href="#sh"/>' +
+    (king ? '<use href="#' + sym + '" y="2"/><g class="crownuse"><use href="#' + sym + '" y="-3"/><use href="#crown" transform="translate(50 44) scale(.56) translate(-50 -50)"/></g>' : '<use href="#' + sym + '"/>') + '</svg>';
+  const disc = (variant, side, king) => pieceSVG(pieceSym(variant, side), king, 'disc');
+  // the checkers a player has taken, set on the table in front of them in little stacks of four (slightly untidy, like real ones)
+  function pileHTML(variant, side, n, seed) {
+    let h = '';
+    const sym = pieceSym(variant, side);
+    for (let s = 0; s * 4 < n; s++) {
+      const k = Math.min(4, n - s * 4), j = window.TABLE ? TABLE.jitter(seed, s, { rot: 0, off: 1.5 }) : { x: 0, y: 0 };
+      h += '<span class="stk" style="--n:' + k + ';translate:' + j.x + 'px ' + j.y + 'px">';
+      for (let i = 0; i < k; i++) {
+        const d = window.TABLE ? TABLE.jitter(seed + ':' + s, i, { rot: 0, off: 1.2 }) : { x: 0 };
+        h += '<svg viewBox="0 0 100 100" style="--i:' + i + ';margin-left:' + d.x + 'px"><use href="#' + sym + '"/></svg>';
+      }
+      h += '</span>';
+    }
+    return h;
+  }
   const qBtn = text => '<button class="q" data-q="' + esc(text) + '" aria-label="Why?">?</button>';
   function toast(msg) {
     document.querySelectorAll('.toast').forEach(t => t.remove());
@@ -187,7 +206,9 @@
     let h = '<div class="board" data-board="' + (o.id || '') + '" data-n="' + n + '" data-flip="' + (o.flip ? 1 : 0) + '" style="--cell:' + cell + '%">';
     for (let s = 0; s < g.S; s++) {
       const [r, c] = pos(s);
-      h += '<div class="sq' + (last.has(s) ? ' last' : '') + '" data-s="' + s + '" style="left:' + c * cell + '%;top:' + r * cell + '%;width:' + cell + '%;height:' + cell + '%">' +
+      // each dark square shows its own patch of the grain, like squares cut from one plank
+      const gx = (s * 37) % 8 * 12.5, gy = (s * 53) % 3 * 50;
+      h += '<div class="sq' + (last.has(s) ? ' last' : '') + '" data-s="' + s + '" style="left:' + c * cell + '%;top:' + r * cell + '%;width:' + cell + '%;height:' + cell + '%;--gx:' + gx + '%;--gy:' + gy + '%">' +
         (o.numbers ? '<span class="no">' + R.sqName(v.id, s) + '</span>' : '') + '</div>';
     }
     for (let s = 0; s < g.S; s++) {
@@ -196,8 +217,8 @@
       const [r, c] = pos(s);
       const side = x > 0 ? 0 : 1, king = Math.abs(x) === 2;
       const cls = 'pc' + (o.sel === s ? ' sel' : '') + (o.can && o.can.has(s) ? ' can' : '') + (o.crowned === s ? ' crowned' : '');
-      h += '<div class="' + cls + '" data-sq="' + s + '" style="left:' + c * cell + '%;top:' + r * cell + '%;width:' + cell + '%;height:' + cell + '%">' +
-        '<svg viewBox="0 0 100 100"><use href="#' + pieceSym(v.id, side) + '"/>' + (king ? '<use class="crownuse" href="#crown"/>' : '') + '</svg></div>';
+      h += '<div class="' + cls + '" data-sq="' + s + '" data-side="' + side + '" style="left:' + c * cell + '%;top:' + r * cell + '%;width:' + cell + '%;height:' + cell + '%">' +
+        pieceSVG(pieceSym(v.id, side), king) + '</div>';
     }
     for (const d of o.dots || []) {
       const [r, c] = pos(d.sq);
@@ -241,7 +262,11 @@
       el.style.left = c * cell + '%'; el.style.top = r * cell + '%';
       SFX.hopSounds(FX, p, i - 1, vol, later);
       const ce = caps[i - 1];
-      if (ce) setTimeout(() => SFX.liftOff(FX, ce), 120 * sp);
+      // a taken checker is picked up and put on the capturer's pile beside the board (other tabs: it lifts off)
+      const pile = ce && boardEl.dataset.board === 'play' && document.querySelector('#v-play .pl[data-side="' + el.dataset.side + '"] .pile');
+      if (ce) setTimeout(() => {
+        if (pile && FX.flyTo) { FX.flyTo(ce, pile, { scale: 0.4, duration: 420 }); ce.classList.add('gone-now'); } else SFX.liftOff(FX, ce);
+      }, 120 * sp);
       i++;
       setTimeout(step, SFX.HOP * sp);
     };
@@ -356,6 +381,8 @@
   const vPlay = $('#v-play');
   function renderPlay() {
     const c = cur();
+    // a game in progress sits on a wooden table (table.css); setup and the online lobby keep the plain look
+    vPlay.classList.toggle('tbl-surface', !!c); vPlay.classList.toggle('tbl-wood-dark', !!c);
     if (c) renderGame(c);
     else if (ui.online) renderOnline();
     else renderSetup();
@@ -431,11 +458,10 @@
     const st = c.st, m = material(st)[side], other = material(st)[1 - side];
     const lostOther = startCount(st.variant) - other.men - other.kings;
     const toMove = !st.result && (st.offer >= 0 ? 1 - st.offer : st.turn) === side;
-    let caps = '';
-    for (let i = 0; i < Math.min(lostOther, 8); i++) caps += '<svg viewBox="0 0 100 100"><use href="#' + pieceSym(st.variant, 1 - side) + '"/></svg>';
+    const caps = pileHTML(st.variant, 1 - side, lostOther, 'cap' + side);
     return '<div class="pl' + (toMove ? ' turn' : '') + (c.away[side] ? ' away' : '') + '" data-side="' + side + '">' + disc(st.variant, side) +
       '<span class="nm">' + esc(c.names[side]) + '</span><span class="sub">' + (m.men + m.kings) + ' left' + (m.kings ? ' · ' + m.kings + ' king' + (m.kings > 1 ? 's' : '') : '') + (c.away[side] ? ' · away' : '') + '</span>' +
-      '<span class="cap">' + caps + (lostOther ? '<b>' + lostOther + '</b>' : '') + '</span></div>';
+      '<span class="cap pile">' + caps + (lostOther ? '<b>' + lostOther + '</b>' : '') + '</span></div>';
   }
   function coachLine(c) {
     const st = c.st, bot = bottomSide(c);
@@ -494,7 +520,9 @@
     const fill = evalFill(a && a.e, bot);
     const colOf = side => (pieceSym(st.variant, side) === 'pD' ? '#23252c' : '#e8e2d4');
     const barCol = 'background:' + colOf(bot) + '"><i style="background:' + colOf(1 - bot) + ';width:' + (100 - fill * 100);
-    const size = wide ? fitBoard(vPlay, 72 + 12, 340 + 18 + 26) : fitBoard(vPlay, 36 * 2 + 8 + 36 + 44 + 6 * 5 + (st.offer >= 0 ? 0 : 0), 0);
+    // a phone held sideways puts the board beside the rows instead of above them
+    const land = !wide && window.innerHeight < 500 && window.innerWidth > window.innerHeight;
+    const size = wide ? fitBoard(vPlay, 72 + 12, 340 + 18 + 26) : land ? Math.max(160, Math.min(vPlay.clientHeight - 20, vPlay.clientWidth - 24 - 290)) : fitBoard(vPlay, 36 * 2 + 8 + 36 + 44 + 6 * 5 + (st.offer >= 0 ? 0 : 0), 0);
     const boardInner = boardFor(c, flip);
     const end = st.result ? '<div class="endcard"><div class="panel"><h2>' + esc(resultText(c).split(' · ')[0]) + '</h2><span class="muted">' + esc(R.REASONS[st.result.reason] || '') + '</span>' +
       '<div class="row"><button class="btn" data-act="review">Review</button><button class="btn primary" data-act="new">New game</button></div></div></div>' : '';
@@ -505,7 +533,7 @@
       (c.mode === 'online' ? '' : '<button class="btn" data-act="undo"' + (canUndo(c) ? '' : ' disabled') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>Undo</button>') +
       '<button class="btn" data-act="menu"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>Game</button></div>';
     if (!wide) {
-      vPlay.innerHTML = '<div id="game">' + top +
+      vPlay.innerHTML = '<div id="game"' + (land ? ' class="land" style="--bw:' + size + 'px"' : '') + '>' + top +
         '<div class="evalbar h' + (coachOn ? '' : ' off') + '" style="width:' + size + 'px;align-self:center;' + barCol + '%"></i></div>' +
         '<div class="board-wrap" style="width:' + size + 'px;align-self:center">' + boardInner + end + '</div>' +
         bottom + (offer || coachLine(c)) + acts + '</div>';
@@ -521,7 +549,7 @@
         '<div class="board-wrap" style="width:' + size + 'px">' + boardInner + end + '</div></div>' + bottom + '</div>' +
         '<div id="g-side">' + (offer || coachLine(c)) +
         (coachOn ? '<div class="panel pv">' + (pvTxt ? '<span class="label">' + (c.mode === 'two' ? 'Best at the last move' : 'Best at your last move') + '</span><div>' + pvTxt + '</div>' : '<span class="muted">After each move, the best line from that position shows here.</span>') + '</div>' : '') +
-        '<div class="panel" style="flex:1;min-height:0;display:flex;flex-direction:column;gap:6px"><div class="row"><span class="label grow">Moves</span><span class="muted small">' + esc(V(st.variant).long) + '</span></div><div class="scroll" id="mlist">' + moveListHTML(st, c.anal, st.ply - 1) + '</div></div>' +
+        '<div class="panel sheetpaper" style="flex:1;min-height:0;display:flex;flex-direction:column;gap:6px"><div class="row"><span class="label grow">Moves</span><span class="muted small">' + esc(V(st.variant).long) + '</span></div><div class="scroll" id="mlist">' + moveListHTML(st, c.anal, st.ply - 1) + '</div></div>' +
         acts + '</div></div>';
       const ml = $('#mlist'); if (ml) ml.scrollTop = ml.scrollHeight;
     }

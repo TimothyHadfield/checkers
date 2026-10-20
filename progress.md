@@ -1,7 +1,7 @@
 # Checkers Lab — progress
 
 ## START HERE
-Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-20 (design pass).
+Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-20 (real-table look).
 Live: https://timothyhadfield.github.io/checkers/ · Repo: https://github.com/TimothyHadfield/checkers
 
 ## Goal right now
@@ -37,6 +37,7 @@ Checkers is very drawish at the top (it is solved as a draw), so strong levels d
 ## Standing instructions (Tim's words)
 - "add risk, clue, battleship, connect four, stratego, clue, checkers, pandemic, splendor, king of tokyo, 7 wonders, and evolution to the list of games."
 - "add opptional sounds you can add to the games that reflect what's happening in the game accurately as well as win celebrations, and other fun annimations to go along with everything. Just make sure everything is customizable in the settings so the user can play as preffered." (2026-10-20)
+- "make sure that each of the games also have a look to them so that the game (either board or card layout) looks almost identical to how the board or card layout looks like in real life ... It should look kind of like you're looking through a camera that is connected to a user's glasses that is playing in real life (not actually, but the layout and style of everything should be similar)." (2026-10-20)
 - From the briefs: odds/numbers where the decision is made; computer players at measured strength; a study mode (points lost, hint, best move afterwards); a real-table companion; dark phone-first look with the Hub tokens; $0; no copyrighted art or rulebook text.
 
 ## Traps
@@ -81,7 +82,12 @@ Verified with a WebKit script (scratchpad `design/checkers/shots.mjs`, before/af
 | Puzzle solved / wrong | `celebrate big` / `error` + board shake | |
 Computer/opponent moves use the same sounds at 0.85 volume. Animations off = `html.fx-still` (all CSS transitions/keyframes off, moves instant, sounds keep pace); Fast = `html.fx-fast`.
 
+## Real-table look (2026-10-20) — done
+Game in progress sits on a wooden table (`css/table.css` + `js/table.js` = shared `_table` 1.0.0, copied unchanged; `.gitattributes` keeps them and `js/fx.js` LF — recopy byte for byte). Board: walnut frame + inlay, grained squares (index.html `.board-wrap`). Pieces: `pieceSVG` in app.js (shadow, side wall, fluted rim; king = two stacked discs + stamped crown). Captured checkers: `pileHTML` stacks of 4 in front of the capturer; a taken piece flies there (`FX.flyTo`). Helpers smoked glass; laptop move list = paper scoresheet; phone landscape = `#game.land` grid. Setup/online lobby keep the plain look. Research + shots: scratchpad `table/checkers/` (real.md, before/, after3/).
+- Trap: pieces now carry `data-side`; the `.pile` element is the flight target.
+
 ## NOT verified
+- Real-table look on Tim's iPhone; no 3-D camera tilt (taps map by screen rect, a tilt would mis-map them).
 - On Tim's real iPhone (only Safari's engine at iPhone size, headless). Sounds never heard by a person (headless WebKit on Windows has no Web Audio; Chromium counted 7 real plays).
 - Sounds/effects in a browser: only the play tab vs computer (error, double jump, crown, win) was driven; puzzles, analyze, online turn chime and draw sound are covered by node tests / code reading only.
 - FMJD 2024 extra 5-move rule (lone king on the long diagonal) not implemented.
