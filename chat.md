@@ -6,3 +6,8 @@
 - **Verified:** 38 node tests (perft equals published counts), mutation check (each deliberate breakage caught), full games played by tapping in WebKit at 393 px and 1280 px, screenshots of every tab, no console errors or horizontal overflow, fresh-agent QA pass, live URL checked.
 - **QA fixes:** phone Back closes sheets/online screen first; setup scrolls inside on short phones; room code paste tolerant; no undo after resigning.
 - **Open:** Tim's look on his phone; strength of the non-American rule sets not measured.
+
+## 2026-10-20 — design pass (builder for the portfolio manager)
+- **Asked:** Tim: "once you're finished with all the games, review them again for design improvements especially visually." Plus three QA display bugs.
+- **Built:** CSS polish in index.html (turn pill, setup fit, centred desktop setup, game-over pop-in, clearer glows, bigger arrows and ? hit areas, laptop side text); app.js: Review board size on phone, Review during a fresh/online game, puzzle tries remembered.
+- **Verified:** before/after WebKit screenshots at 393×659, 1280×800, iPhone SE; bugs seen before, gone after; 38 node tests pass.

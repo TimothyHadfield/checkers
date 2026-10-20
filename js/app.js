@@ -5,7 +5,7 @@
   const R = window.CkRules, L = window.CkLevels, E = window.CkEngine, OG = window.CkOnlineGame;
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const BUILD = '2026-10-20.1';
+  const BUILD = '2026-10-20.2';
 
   // ================================================================== storage
   const KEY = 'checkers:v1';
@@ -21,10 +21,12 @@
     if (!['first', 'second', 'random'].includes(st.side)) st.side = 'first';
     ['coach', 'dots', 'numbers', 'turnBoard'].forEach(k => { st[k] = !!st[k]; });
     st.name = typeof st.name === 'string' ? st.name.slice(0, 20) : '';
-    const out = { settings: st, game: null, last: null, pz: { solved: {}, idx: {} }, an: null, online: !!s.online };
+    const out = { settings: st, game: null, last: null, pz: { solved: {}, idx: {}, tried: {} }, an: null, online: !!s.online };
     if (validGame(s.game)) out.game = s.game;
     if (validGame(s.last)) out.last = s.last;
-    if (s.pz && typeof s.pz === 'object') out.pz = { solved: s.pz.solved && typeof s.pz.solved === 'object' ? s.pz.solved : {}, idx: s.pz.idx && typeof s.pz.idx === 'object' ? s.pz.idx : {} };
+    const obj = x => (x && typeof x === 'object' ? x : {});
+    if (s.pz && typeof s.pz === 'object') out.pz = { solved: obj(s.pz.solved), idx: obj(s.pz.idx), tried: obj(s.pz.tried) };
+    out.pz.tried = out.pz.tried || {};
     if (s.an && s.an.st) { try { R.legal(s.an.st); out.an = s.an; } catch (e) { out.an = null; } }
     return out;
   }
@@ -960,7 +962,9 @@
     const c = cur();
     if (c && c.mode !== 'online' && store.game && store.game.st.moves.length && !store.game.st.result) return { g: store.game, live: true };
     if (store.last) return { g: store.last, live: false };
-    if (store.game && store.game.st.moves.length) return { g: store.game, live: true };
+    // a game that has just started (no moves yet) is still a game in progress, not "no game"
+    if (store.game) return { g: store.game, live: true };
+    if (c && c.mode === 'online') return { g: { st: c.st, mode: 'online', level: 0, my: c.my, anal: c.anal, started: gameKey(c) }, live: true };
     return null;
   }
   function renderReview() {
@@ -987,7 +991,8 @@
       return k ? Math.round(sum / k) : null;
     });
     const wide = isWide();
-    const size = wide ? fitBoard(vReview, 0, 360 + 18) : Math.min(fitBoard(vReview, 40 + 64 + 44 + 52 + 110 + 35, 0), 340);
+    // phone: the board takes what is left after the other rows, keeping about three move rows visible
+    const size = wide ? fitBoard(vReview, 0, 360 + 18) : fitBoard(vReview, 30 + 52 + 64 + 44 + (missing.length || graded.length ? 44 : 0) + 84 + 7 * 6, 0);
     const flip = me === 1;
     const arrows = [];
     if (played) arrows.push({ path: played, color: 'blue' });
@@ -1273,8 +1278,11 @@
         ui.pz.busy = true;
         animateMove(bEl, m, () => {
           ui.pz.busy = false;
+          // remember the attempt across reloads, so a reload never turns a second try into "First try!"
+          const before = !!store.pz.tried[p.id];
+          store.pz.tried[p.id] = 1;
           if (!ok) {
-            ui.pz.tries++;
+            ui.pz.tries++; save();
             ui.pz.msg = '<span class="grade g-mistake">Not quite</span> That lets the win slip. Try again.';
             ui.pz.state = R.newGame(p.v, { board: pzBoard(p), turn: p.t });
             renderPuzzles(); return;
@@ -1282,7 +1290,7 @@
           store.pz.solved[p.id] = 1; save();
           ui.pz.state = R.act(st, st.turn, { path: m.path });
           ui.pz.done = true;
-          ui.pz.msg = '<span class="grade g-best">Correct</span> ' + (ui.pz.tries ? '' : 'First try! ') + 'Here is how it goes on…';
+          ui.pz.msg = '<span class="grade g-best">Correct</span> ' + (ui.pz.tries || before ? '' : 'First try! ') + 'Here is how it goes on…';
           renderPuzzles();
           playLine(p, 1);
         });

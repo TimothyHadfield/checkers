@@ -1,7 +1,7 @@
 # Checkers Lab — progress
 
 ## START HERE
-Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-20 (first build).
+Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-20 (design pass).
 Live: https://timothyhadfield.github.io/checkers/ · Repo: https://github.com/TimothyHadfield/checkers
 
 ## Goal right now
@@ -57,7 +57,12 @@ Checkers is very drawish at the top (it is solved as a draw), so strong levels d
 - Undo is off after a resignation or an agreed draw (other finished games can still be taken back vs the computer).
 
 ## Fresh-agent QA (2026-10-20, live site) — fixed
-Back left the site from the online screen/sheets; setup hid Start under the tab bar on 375×553 and 320 wide; pasted room code with a space failed; Undo revived a resigned game. All fixed and re-measured (scratchpad fixes.mjs). Left as is (low): Review shows "No game yet" during a game; reloading a puzzle after a wrong try still says "First try!".
+Back left the site from the online screen/sheets; setup hid Start under the tab bar on 375×553 and 320 wide; pasted room code with a space failed; Undo revived a resigned game. All fixed and re-measured (scratchpad fixes.mjs).
+
+## Design pass (2026-10-20) — done
+Turn shown as a warm pill on the player row; setup fits 393×659 and iPhone SE with no inner scroll (was cut under the tab bar); Review phone board larger; desktop setup centred; bigger game-over card with a pop-in; clearer must-jump glow; bigger ‹ › glyphs; 40px+ hit area on the ? buttons; larger side-panel text on laptop.
+Also fixed: Review said "No game yet" during a just-started game (now shows it, online too); puzzle attempts are stored (`pz.tried`), so a reload never says "First try!" after a wrong try.
+Verified with a WebKit script (scratchpad `design/checkers/shots.mjs`, before/after screenshots at 393×659, 1280×800, SE): both bugs reproduced before, gone after; no overflow, no console errors.
 
 ## NOT verified
 - On Tim's real iPhone (only Safari's engine at iPhone size, headless).
