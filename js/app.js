@@ -93,16 +93,25 @@
     });
     document.body.appendChild(back);
   }
+  // an open sheet or the online screen gets its own history entry, so the phone's Back closes it first
+  const layerOn = () => { try { return !!(history.state && history.state.layer); } catch (e) { return false; } };
+  let quietPops = 0;
+  function popQuiet() { quietPops++; try { history.back(); } catch (e) { quietPops--; } }
+  function pushLayer(layer) { try { history.pushState({ tab: ui.tab, layer }, '', location.hash || '#' + ui.tab); } catch (e) { /* file:// */ } }
   function sheet(title, html, onClick) {
-    closeSheet();
+    const had = $('#sheet');
+    if (had) had.remove();
     const back = document.createElement('div');
     back.className = 'sheet-back'; back.id = 'sheet';
     back.innerHTML = '<div class="sheet"><div class="row"><h3 class="grow">' + esc(title) + '</h3><button class="btn small ghost" data-close>Close</button></div><div class="scroll">' + html + '</div></div>';
     back.addEventListener('click', e => {
-      if (e.target === back || e.target.closest('[data-close]')) { closeSheet(); return; }
-      if (onClick) onClick(e);
+      if (e.target === back || e.target.closest('[data-close]')) closeSheet();
+      else if (onClick) onClick(e);
+      // the sheet closed itself and nothing new took its history entry: drop the entry quietly
+      if (!$('#sheet') && layerOn() && history.state.layer === 'sheet') popQuiet();
     });
     document.body.appendChild(back);
+    if (!had && !(layerOn() && history.state.layer === 'sheet')) pushLayer('sheet');
   }
   function closeSheet() { const s = $('#sheet'); if (s) s.remove(); }
   const material = st => R.material(st.board);
@@ -232,12 +241,23 @@
     ui.tab = tab;
     document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + tab));
-    if (push) try { history.pushState({ tab }, '', '#' + tab); } catch (e) { /* file:// */ }
+    // leaving a sheet/online layer for another tab replaces the layer's entry, so Back then goes to the old tab
+    if (push) try { history[layerOn() ? 'replaceState' : 'pushState']({ tab }, '', '#' + tab); } catch (e) { /* file:// */ }
     closeSheet();
     render();
   }
-  // Back goes to where you just were
-  window.addEventListener('popstate', e => showTab((e.state && e.state.tab) || (location.hash || '#play').slice(1), false));
+  // Back goes to where you just were: first closes an open box, sheet or the online screen, then steps back through tabs
+  window.addEventListener('popstate', e => {
+    const s = e.state || {};
+    if (quietPops > 0) { quietPops--; return; }
+    if (s.layer) return; // stepping forward onto a closed layer: nothing to reopen
+    const boxes = document.querySelectorAll('.confirm-back');
+    const sh = $('#sheet');
+    const tab = s.tab || (location.hash || '#play').slice(1);
+    if (boxes.length || sh) { boxes.forEach(b => b.remove()); closeSheet(); if (tab === ui.tab) return; }
+    if (ui.online && !store.online && tab === ui.tab) { ui.online = false; renderPlay(); return; }
+    showTab(tab, false);
+  });
   document.addEventListener('click', e => {
     const old = $('.pop');
     const q = e.target.closest('[data-q]');
@@ -509,6 +529,8 @@
   const startsWith = (p, pre) => pre.every((x, i) => p[i] === x);
   function canUndo(c) {
     if (c.mode === 'online' || !c.st.moves.length) return false;
+    // a resignation or an agreed draw is final (it is not a move that can be taken back)
+    if (c.st.result && (c.st.result.reason === 'resign' || c.st.result.reason === 'agreed')) return false;
     if (c.mode === 'two') return true;
     // vs computer: there must be one of my moves to take back
     for (let i = c.st.moves.length - 1; i >= 0; i--) if (sideAt(c.st, i) === c.my) return true;
@@ -769,7 +791,7 @@
   }
   function undo() {
     const g = store.game;
-    if (!g) return;
+    if (!g || !canUndo(g)) return;
     let n = g.st.moves.length - 1;
     if (g.mode === 'computer') { while (n >= 0 && sideAt(g.st, n) !== g.my) n--; }
     if (n < 0) return;
@@ -828,13 +850,16 @@
     store.online = false; ui.online = false; save();
     net.snap = null; ui.onlineAnal = null; ui.onlineSaved = false;
     if (r) r.leave().catch(() => {});
+    if (layerOn() && history.state.layer === 'online') popQuiet();
     renderPlay();
   }
   async function onlineBtn(k) {
-    if (k === 'open') { ui.online = true; renderPlay(); loadOnline().catch(() => toast('Online play couldn’t load. Check your internet.')); return; }
+    if (k === 'open') { ui.online = true; pushLayer('online'); renderPlay(); loadOnline().catch(() => toast('Online play couldn’t load. Check your internet.')); return; }
     if (k === 'back') {
       if (net.snap && net.snap.status === 'lobby') { confirmBox('Leave this room?', 'Leave', leaveOnline); return; }
-      ui.online = false; renderPlay(); return;
+      ui.online = false; renderPlay();
+      if (layerOn() && history.state.layer === 'online') popQuiet();
+      return;
     }
     if (k === 'start') {
       if (net.connecting) return;
@@ -849,7 +874,7 @@
     if (nameEl) { store.settings.name = nameEl.value.trim().slice(0, 20); save(); }
     const name = store.settings.name || 'Player';
     const codeEl = $('#on-code');
-    const code = codeEl ? codeEl.value.trim().toUpperCase() : '';
+    const code = codeEl ? codeEl.value.replace(/[^a-z]/gi, '').toUpperCase() : '';
     if (k === 'join' && code.length !== 5) { toast('Room codes have 5 letters'); return; }
     if (net.connecting) return;
     net.connecting = true; renderPlay();
@@ -895,7 +920,7 @@
         '<button class="btn primary" data-on="create" style="width:100%">Create a room</button>' +
         '<p class="muted small" style="margin:0">Uses the rules and side you picked. The other seat can be a friend or a computer.</p></div>' +
         '<div class="panel"><span class="label">Join a friend</span><div class="row">' +
-        '<input class="txt code" id="on-code" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Code">' +
+        '<input class="txt code" id="on-code" maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Code">' +
         '<button class="btn primary" data-on="join">Join</button></div></div>';
     }
     vPlay.innerHTML = '<div class="setup"><div class="row"><button class="btn small ghost" data-on="back">Back</button><span class="grow"></span><span class="label">Play online</span></div>' + body + '</div>';

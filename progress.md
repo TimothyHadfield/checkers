@@ -45,6 +45,7 @@ Checkers is very drawish at the top (it is solved as a draw), so strong levels d
 - Port 8731 on this laptop is often taken by another project's server; serve on a random high port.
 - Headless WebKit clicks can time out when the CPU is busy (other agents); rerun rather than "fix" the page.
 - Pieces have `pointer-events: none`; tests click `.sq[data-s=N]` (square index), not the piece.
+- History: sheets and the online screen push a `{layer}` entry so phone Back closes them first; closing them by button drops that entry with `popQuiet()`. Changing tab from a layer uses replaceState. Keep this when adding new overlays.
 
 ## Decisions
 - Draw rules are applied automatically (no referee to claim them).
@@ -53,6 +54,10 @@ Checkers is very drawish at the top (it is solved as a draw), so strong levels d
 - Coach grades: lost ≤0.1 men Best, ≤0.3 Good, ≤0.7 Inaccuracy, ≤1.5 Mistake, else Blunder; forced moves don't count. Accuracy = mean of max(0, 100 − 40 × lost).
 - Online computer seats think on the host's browser, capped at Hard.
 - The laptop side panel shows the best line from your last move (not the current one, which would give away the answer).
+- Undo is off after a resignation or an agreed draw (other finished games can still be taken back vs the computer).
+
+## Fresh-agent QA (2026-10-20, live site) — fixed
+Back left the site from the online screen/sheets; setup hid Start under the tab bar on 375×553 and 320 wide; pasted room code with a space failed; Undo revived a resigned game. All fixed and re-measured (scratchpad fixes.mjs). Left as is (low): Review shows "No game yet" during a game; reloading a puzzle after a wrong try still says "First try!".
 
 ## NOT verified
 - On Tim's real iPhone (only Safari's engine at iPhone size, headless).
