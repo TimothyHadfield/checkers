@@ -282,6 +282,16 @@
   .navrow { display: flex; gap: 6px; }
   .navrow .btn { flex: 1; padding: 0 6px; }
   .navrow .btn[data-rv], .navrow .btn[data-pz="prev"] { font-size: 22px; line-height: 1; }
+  /* phone Review: the graph sits between ‹ and › so the board can be bigger; one move row always shows */
+  .navrow.rvnav .btn { flex: 0 0 46px; padding: 0; }
+  .navrow.rvnav .chart { flex: 1; min-width: 0; height: auto; min-height: 44px; }
+  #rv-list { min-height: 38px; }
+  /* phone held sideways: board on the left at full height, the rest beside it */
+  .split.land { flex-direction: row; gap: 14px; justify-content: center; align-items: center; }
+  .split.land > .board-wrap { flex: none; }
+  .split.land .side { flex: 1 1 auto; max-width: 380px; min-width: 0; align-self: stretch; justify-content: center; }
+  .split.land .chart { height: 48px; }
+  .split.land #rv-list { flex: 1 1 0; }
   .palette { display: flex; gap: 6px; }
   .palette button { flex: 1; min-height: 42px; background: var(--bg-soft); border: 1px solid var(--line); border-radius: 9px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 2px; }
   .palette button svg { width: 28px; height: 28px; }
@@ -373,6 +383,6 @@
 <script src="js/fx.js?v=4"></script>
 <script src="js/table.js?v=2"></script>
 <script src="js/sfx.js?v=3"></script>
-<script src="js/app.js?v=6"></script>
+<script src="js/app.js?v=7"></script>
 </body>
 </html>

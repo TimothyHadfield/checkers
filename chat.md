@@ -29,3 +29,9 @@
 - **Built:** `_table` 1.0.1 recopied; app.js: no moves while a draw offer is open (+ message), two-tab sync, Back closes confirm boxes, Analyze route choice + slide guard, Review analysis survives an engine failure, lapsed draw answer, puzzle solution route; index.html: player rows never cut the name (count line shortens, stacks slide together).
 - **Verified:** 50 scenarios / 57 WebKit checks (scratchpad `edge/checkers/edge.mjs`, results-*.json, shots/): 9 failed before, all pass after; 42/42 node tests; layouts at 320×568, 393×659, 659×393, 568×320, 640×400, 1280×800, 1920×1080.
 - **Open:** real online play on two phones; Tim's look at the squeezed captured stacks.
+
+## 2026-10-21 — visibility pass (builder for the portfolio manager)
+- **Asked:** Tim: "for a lot of the games the cards or board layout is too small to easily see what's going on ... Fix this so the view of what's happening and where everything is is very clear."
+- **Built:** app.js: Review on phone puts the graph between « ‹ and › » (board 197 → 312 px); Review/Analyze/Puzzles sideways get a board-left layout (182 → 297 px, nothing under the tab bar); king crown 56% → 78%. index.html: `.rvnav`, `.split.land` CSS; app.js?v=7.
+- **Verified:** audit + before/after WebKit shots at 393×659, 320×568, 659×393, 1280×800, 1440×900 (scratchpad `vis/checkers/`); layout-test.mjs 5 fails before, 11/11 after in WebKit and Chromium; sideways set-up taps hit the right square; 42/42 node tests; one reviewer agent.
+- **Open:** Tim's look; the Play board on a portrait phone is width-limited (343 px), no zoom added.

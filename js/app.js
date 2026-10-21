@@ -105,7 +105,7 @@
   // a real checker seen from the player's seat: contact shadow, side wall, ringed top; a king is a second checker
   // stacked on the first (the top one carries a stamped crown)
   const pieceSVG = (sym, king, cls) => '<svg viewBox="0 0 100 100"' + (cls ? ' class="' + cls + '"' : '') + '><use href="#sh"/>' +
-    (king ? '<use href="#' + sym + '" y="2"/><g class="crownuse"><use href="#' + sym + '" y="-3"/><use href="#crown" transform="translate(50 44) scale(.56) translate(-50 -50)"/></g>' : '<use href="#' + sym + '"/>') + '</svg>';
+    (king ? '<use href="#' + sym + '" y="2"/><g class="crownuse"><use href="#' + sym + '" y="-3"/><use href="#crown" transform="translate(50 44) scale(.78) translate(-50 -50)"/></g>' : '<use href="#' + sym + '"/>') + '</svg>';
   const disc = (variant, side, king) => pieceSVG(pieceSym(variant, side), king, 'disc');
   // the checkers a player has taken, set on the table in front of them in little stacks of four (slightly untidy, like real ones)
   function pileHTML(variant, side, n, seed) {
@@ -366,6 +366,9 @@
   let resizeT = 0;
   window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(render, 120); });
   const isWide = () => window.innerWidth >= 900;
+  // a phone held sideways: the board goes on the left at full height, everything else beside it
+  const isLand = () => !isWide() && window.innerHeight < 500 && window.innerWidth > window.innerHeight;
+  function landBoard(view, sideMin) { return Math.max(160, Math.min(view.clientHeight - 20, view.clientWidth - 24 - sideMin)); }
 
   // board size that fits the space left in a view (no page scroll)
   function fitBoard(view, reservedH, reservedW) {
@@ -547,8 +550,8 @@
     const colOf = side => (pieceSym(st.variant, side) === 'pD' ? '#23252c' : '#e8e2d4');
     const barCol = 'background:' + colOf(bot) + '"><i style="background:' + colOf(1 - bot) + ';width:' + (100 - fill * 100);
     // a phone held sideways puts the board beside the rows instead of above them
-    const land = !wide && window.innerHeight < 500 && window.innerWidth > window.innerHeight;
-    const size = wide ? fitBoard(vPlay, 72 + 12, 340 + 18 + 26) : land ? Math.max(160, Math.min(vPlay.clientHeight - 20, vPlay.clientWidth - 24 - 290)) : fitBoard(vPlay, 36 * 2 + 8 + 36 + 44 + 6 * 5 + (st.offer >= 0 ? 0 : 0), 0);
+    const land = isLand();
+    const size = wide ? fitBoard(vPlay, 72 + 12, 340 + 18 + 26) : land ? landBoard(vPlay, 290) :fitBoard(vPlay, 36 * 2 + 8 + 36 + 44 + 6 * 5 + (st.offer >= 0 ? 0 : 0), 0);
     const boardInner = boardFor(c, flip);
     const end = st.result ? '<div class="endcard"><div class="panel"><h2>' + esc(resultText(c).split(' · ')[0]) + '</h2><span class="muted">' + esc(R.REASONS[st.result.reason] || '') + '</span>' +
       '<div class="row"><button class="btn" data-act="review">Review</button><button class="btn primary" data-act="new">New game</button></div></div></div>' : '';
@@ -1104,9 +1107,9 @@
       for (let i = 0; i < n; i++) if (sideAt(st, i) === side && anal[i] && anal[i].g && !anal[i].forced) { sum += Math.max(0, 100 - 40 * anal[i].lost); k++; }
       return k ? Math.round(sum / k) : null;
     });
-    const wide = isWide();
-    // phone: the board takes what is left after the other rows, keeping about three move rows visible
-    const size = wide ? fitBoard(vReview, 0, 360 + 18) : fitBoard(vReview, 30 + 52 + 64 + 44 + (missing.length || graded.length ? 44 : 0) + 84 + 7 * 6, 0);
+    const wide = isWide(), land = isLand();
+    // phone: the board takes what is left after the other rows (the graph sits between the arrows, one move row stays visible)
+    const size = wide ? fitBoard(vReview, 0, 360 + 18) : land ? landBoard(vReview, 260) : fitBoard(vReview, 30 + 52 + 44 + (missing.length || graded.length ? 44 + 7 : 0) + 40 + 4 * 7, 0);
     const flip = me === 1;
     const arrows = [];
     if (played) arrows.push({ path: played, color: 'blue' });
@@ -1128,8 +1131,12 @@
     const status = missing.length || graded.length ? (ui.rvBusy ? '<div class="muted small">Analyzing… ' + ui.rvBusy + '</div>' : '<button class="btn" data-rv="analyze">Analyze ' + (missing.length || graded.length) + ' positions</button>') : '';
     const list = '<div class="scroll" id="rv-list" style="flex:1">' + moveListHTML(st, anal, ply) + '</div>';
     const infoBox = '<div class="panel small" style="padding:8px 10px;min-height:52px">' + info + '</div>';
-    if (wide) vReview.innerHTML = '<div class="split"><div class="board-wrap" style="width:' + size + 'px">' + boardH + '</div><div class="side">' + head + graph + infoBox + nav + status + list + '</div></div>';
-    else vReview.innerHTML = '<div class="split">' + head + '<div class="board-wrap" style="width:' + size + 'px;align-self:center">' + boardH + '</div>' + infoBox + graph + nav + status + list + '</div>';
+    if (wide || land) vReview.innerHTML = '<div class="split' + (land ? ' land' : '') + '"><div class="board-wrap" style="width:' + size + 'px">' + boardH + '</div><div class="side">' + head + graph + infoBox + nav + status + list + '</div></div>';
+    else {
+      // phone: « ‹ [graph] › » in one row, so the board gets the height
+      const navGraph = nav.replace('<button class="btn" data-rv="next"', graph + '<button class="btn" data-rv="next"').replace('class="navrow"', 'class="navrow rvnav"');
+      vReview.innerHTML = '<div class="split">' + head + '<div class="board-wrap" style="width:' + size + 'px;align-self:center">' + boardH + '</div>' + infoBox + navGraph + status + list + '</div>';
+    }
     const cel = vReview.querySelector('#rv-list td.cur'); if (cel) cel.scrollIntoView({ block: 'nearest' });
   }
   function graphSVG(st, anal, me, ply) {
@@ -1232,7 +1239,8 @@
       }
     }
     const arrows = !edit && res && res.r.move ? [{ path: res.r.move.path }] : [];
-    const size = wide ? fitBoard(vAn, 0, 360 + 18) : fitBoard(vAn, 44 + 8 + (edit ? 50 + 44 + 44 : 96 + 44) + 30, 0);
+    const land = isLand();
+    const size = wide ? fitBoard(vAn, 0, 360 + 18) : land ? landBoard(vAn, 280) : fitBoard(vAn,44 + 8 + (edit ? 50 + 44 + 44 : 96 + 44) + 30, 0);
     const boardH = boardHTML({ id: 'an', variant: st.variant, board: st.board, flip: !!an.flip, numbers: store.settings.numbers, sel, dots, arrows,
       last: st.ply > 0 ? [st.moves[st.ply - 1][0], st.moves[st.ply - 1][st.moves[st.ply - 1].length - 1]] : [] });
     const top = '<div class="row"><select id="an-var" aria-label="Rules">' + R.VARIANT_IDS.map(id => '<option value="' + id + '"' + (id === st.variant ? ' selected' : '') + '>' + esc(V(id).name) + '</option>').join('') + '</select>' +
@@ -1254,7 +1262,8 @@
         (res ? '<span class="muted small" style="flex:none">depth ' + res.r.depth + '</span>' : '') + '</div>' +
         '<div class="navrow"><button class="btn" data-an="undo"' + (st.moves.length ? '' : ' disabled') + '>Undo</button><button class="btn" data-an="flip">Flip</button><button class="btn primary" data-an="play"' + (st.result ? ' disabled' : '') + '>Play from here</button></div>';
     }
-    if (wide) vAn.innerHTML = '<div class="split"><div class="board-wrap" style="width:' + size + 'px">' + boardH + '</div><div class="side">' + top + panel + (!edit ? '<div class="panel" style="flex:1;min-height:0;display:flex;flex-direction:column"><span class="label">Moves</span><div class="scroll">' + moveListHTML(st, {}, st.ply - 1) + '</div></div>' : '') + '</div></div>';
+    if (land) vAn.innerHTML = '<div class="split land"><div class="board-wrap" style="width:' + size + 'px">' + boardH + '</div><div class="side">' + top + panel + '</div></div>';
+    else if (wide) vAn.innerHTML = '<div class="split"><div class="board-wrap" style="width:' + size + 'px">' + boardH + '</div><div class="side">' + top + panel + (!edit ?'<div class="panel" style="flex:1;min-height:0;display:flex;flex-direction:column"><span class="label">Moves</span><div class="scroll">' + moveListHTML(st, {}, st.ply - 1) + '</div></div>' : '') + '</div></div>';
     else vAn.innerHTML = '<div class="split">' + top + '<div class="board-wrap" style="width:' + size + 'px;align-self:center">' + boardH + '</div>' + panel + '</div>';
     if (!edit && !st.result && !res) {
       const k = anKey(st);
@@ -1369,7 +1378,8 @@
     const legal = !ui.pz.done && st.turn === p.t ? R.legal(st) : [];
     const dots = ui.pz.sel != null ? legal.filter(m => m.path[0] === ui.pz.sel).map(m => ({ sq: m.path[m.path.length - 1], kind: m.caps.length ? 'cap' : '' })) : [];
     const arrows = ui.pz.showSol ? [{ path: p.line[0] }] : [];
-    const size = wide ? fitBoard(vPz, 0, 360 + 18) : fitBoard(vPz, 44 + 52 + 44 + 24 + 20, 0);
+    const land = isLand();
+    const size = wide ? fitBoard(vPz, 0, 360 + 18) : land ? landBoard(vPz, 260) : fitBoard(vPz, 44 + 52 + 44 + 24 + 20, 0);
     const solved = Object.keys(store.pz.solved).filter(id => list.some(x => x.id === id)).length;
     const goal = p.kind === 'win' ? 'and win the game' : 'and win material';
     const head = '<div class="row"><span class="label grow">Puzzle ' + (i + 1) + ' of ' + list.length + (store.pz.solved[p.id] ? ' · solved' : '') + '</span><span class="muted small">' + solved + ' solved · ' + esc(V(variant).name) + '</span>' +
@@ -1378,7 +1388,7 @@
     const nav = '<div class="navrow"><button class="btn" data-pz="prev"' + (i ? '' : ' disabled') + '>‹</button><button class="btn" data-pz="hint"' + (ui.pz.done ? ' disabled' : '') + '>Hint</button><button class="btn" data-pz="sol"' + (ui.pz.done ? ' disabled' : '') + '>Show</button><button class="btn primary" data-pz="next"' + (i < list.length - 1 ? '' : ' disabled') + '>Next</button></div>';
     const boardH = boardHTML({ id: 'pz', variant: p.v, board: st.board, flip, numbers: store.settings.numbers, sel: ui.pz.sel, dots, arrows,
       can: ui.pz.hint ? new Set([p.line[0][0]]) : null, last: st.ply > 0 ? [st.moves[st.ply - 1][0], st.moves[st.ply - 1][st.moves[st.ply - 1].length - 1]] : [] });
-    if (wide) vPz.innerHTML = '<div class="split"><div class="board-wrap" style="width:' + size + 'px">' + boardH + '</div><div class="side">' + head + msg + nav + '</div></div>';
+    if (wide || land) vPz.innerHTML = '<div class="split' + (land ? ' land' : '') + '"><div class="board-wrap" style="width:' + size + 'px">' + boardH + '</div><div class="side">' + head + msg + nav + '</div></div>';
     else vPz.innerHTML = '<div class="split">' + head + '<div class="board-wrap" style="width:' + size + 'px;align-self:center">' + boardH + '</div>' + msg + nav + '</div>';
   }
   vPz.addEventListener('click', e => {

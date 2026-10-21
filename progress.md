@@ -1,7 +1,7 @@
 # Checkers Lab — progress
 
 ## START HERE
-Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-20 (edge-case pass).
+Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-21 (visibility pass).
 Live: https://timothyhadfield.github.io/checkers/ · Repo: https://github.com/TimothyHadfield/checkers
 
 ## Goal right now
@@ -39,6 +39,7 @@ Checkers is very drawish at the top (it is solved as a draw), so strong levels d
 - "add opptional sounds you can add to the games that reflect what's happening in the game accurately as well as win celebrations, and other fun annimations to go along with everything. Just make sure everything is customizable in the settings so the user can play as preffered." (2026-10-20)
 - "make sure that each of the games also have a look to them so that the game (either board or card layout) looks almost identical to how the board or card layout looks like in real life ... It should look kind of like you're looking through a camera that is connected to a user's glasses that is playing in real life (not actually, but the layout and style of everything should be similar)." (2026-10-20)
 - "Could you focus on making each game perfect especially in scenarios that the game doesn't expect or are a little weird." (2026-10-20)
+- "for a lot of the games the cards or board layout is too small to easily see what's going on. ... Fix this so the view of what's happening and where everything is is very clear. Consider parts of the board that are dense in what's happening and if the user can reasonably see it." (2026-10-21)
 - From the briefs: odds/numbers where the decision is made; computer players at measured strength; a study mode (points lost, hint, best move afterwards); a real-table companion; dark phone-first look with the Hub tokens; $0; no copyrighted art or rulebook text.
 
 ## Traps
@@ -102,6 +103,16 @@ Game in progress sits on a wooden table (`css/table.css` + `js/table.js` = share
 | Puzzle solved by the other capture route | replay could stop | solution's own route is used |
 Passed as-is: every ending's end card, first-move win, empty Analyze position, long 160-ply game, rapid taps/Undo/Start/Hint, resign while thinking, reload mid-think/mid-slide, storage blocked, corrupt saves, offline online-room create, rotate mid-slide, 320–1920 px, light preference.
 - Trap: headless WebKit on a busy laptop drops frames, so Playwright clicks time out; the harness clicks with `force` / DOM clicks and waits longer. Rerun before "fixing".
+
+## Visibility pass (2026-10-21) — done
+Tim: "for a lot of the games the cards or board layout is too small to easily see what's going on ... Fix this so the view of what's happening and where everything is is very clear." Audit + shots: scratchpad `vis/checkers/` (audit.md, before/, after/, check.mjs, layout-test.mjs).
+| Screen | Was | Now |
+|---|---|---|
+| Review, iPhone 393×659 | board 197 px (cells 25) | 312 px (cells 39): graph sits between « ‹ and › », one move row shows |
+| Review, iPhone SE | 182 px | 221 px |
+| Review / Analyze / Puzzles, phone sideways | 182 px, controls under the tab bar, page scrolled | 297 px board left at full height, controls beside it (`.split.land`, `isLand()`/`landBoard()` in app.js) |
+| King crown | 56% scale (~8 px on a 10×10 phone board) | 78% scale |
+Play tab was already fine (phone width-limited 343 px; laptop 602/702 px). `layout-test.mjs` failed 5/11 on the old build, passes 11/11 (WebKit + Chromium); Analyze set-up taps land on the right square sideways in both engines.
 
 ## NOT verified
 - Real-table look on Tim's iPhone; no 3-D camera tilt (taps map by screen rect, a tilt would mis-map them).
