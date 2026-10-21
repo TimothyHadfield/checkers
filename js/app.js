@@ -5,7 +5,7 @@
   const R = window.CkRules, L = window.CkLevels, E = window.CkEngine, OG = window.CkOnlineGame;
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const BUILD = '2026-10-20.3';
+  const BUILD = '2026-10-20.4';
 
   // ================================================================== sounds + effects (js/fx.js, all switchable in Settings)
   const FX = window.FX, SFX = window.CkSfx;
@@ -52,6 +52,17 @@
   }
   const store = load();
   function save() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* private mode */ } }
+  // the same game open in two tabs: a move made in one shows in the other (instead of the stale tab overwriting it)
+  window.addEventListener('storage', e => {
+    if (e.key !== KEY || e.newValue == null) return;
+    const fresh = load();
+    ['settings', 'game', 'last', 'pz', 'an'].forEach(k => { store[k] = fresh[k]; });
+    ui.gen++; ui.thinking = false; ui.sel = null; ui.hint = null;
+    render();
+    afterChange();
+  });
+  // only the tab you are looking at plays the computer's moves; a hidden one catches up when shown
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && store.game && !store.game.st.result) afterChange(); });
 
   // ================================================================== engine runners (Web Workers, main-thread fallback)
   function runner(latestOnly) {
@@ -126,14 +137,27 @@
       '<button class="btn ghost" data-c="no">Cancel</button><button class="btn primary" data-c="yes">' + esc(yes) + '</button></div></div>';
     back.addEventListener('click', e => {
       const b = e.target.closest('[data-c]');
-      if (e.target === back || b) { back.remove(); if (b && b.dataset.c === 'yes') onYes(); }
+      if (e.target === back || b) {
+        back.remove();
+        const go = b && b.dataset.c === 'yes' ? onYes : null;
+        // drop the box's history entry first, then act (the action may push its own entry)
+        if (layerOn() && history.state.layer === 'confirm') popQuiet(go); else if (go) go();
+      }
     });
     document.body.appendChild(back);
+    // the box gets its own history entry, so the phone's Back closes it instead of leaving the game;
+    // a box opened from a sheet takes over the sheet's entry (the sheet is already gone)
+    if (layerOn() && history.state.layer === 'sheet' && !$('#sheet')) { try { history.replaceState({ tab: ui.tab, layer: 'confirm' }, '', location.hash || '#' + ui.tab); } catch (e) { /* file:// */ } }
+    else pushLayer('confirm');
   }
   // an open sheet or the online screen gets its own history entry, so the phone's Back closes it first
   const layerOn = () => { try { return !!(history.state && history.state.layer); } catch (e) { return false; } };
   let quietPops = 0;
-  function popQuiet() { quietPops++; try { history.back(); } catch (e) { quietPops--; } }
+  const afterPops = [];
+  function popQuiet(then) {
+    quietPops++; afterPops.push(then || null);
+    try { history.back(); } catch (e) { quietPops--; afterPops.pop(); if (then) then(); }
+  }
   function pushLayer(layer) { try { history.pushState({ tab: ui.tab, layer }, '', location.hash || '#' + ui.tab); } catch (e) { /* file:// */ } }
   function sheet(title, html, onClick) {
     const had = $('#sheet');
@@ -308,8 +332,9 @@
   // Back goes to where you just were: first closes an open box, sheet or the online screen, then steps back through tabs
   window.addEventListener('popstate', e => {
     const s = e.state || {};
-    if (quietPops > 0) { quietPops--; return; }
-    if (s.layer) return; // stepping forward onto a closed layer: nothing to reopen
+    if (quietPops > 0) { quietPops--; const f = afterPops.shift(); if (f) f(); return; }
+    // back onto a layer (a box opened over the online screen): close the box; forward onto a closed layer: nothing to reopen
+    if (s.layer) { document.querySelectorAll('.confirm-back').forEach(b => b.remove()); return; }
     const boxes = document.querySelectorAll('.confirm-back');
     const sh = $('#sheet');
     const tab = s.tab || (location.hash || '#play').slice(1);
@@ -371,7 +396,8 @@
     return c.my;
   }
   function canIAct(c) {
-    if (!c || c.st.result || ui.anim) return false;
+    // a draw offer waits for its answer (Accept / Decline) before anyone moves
+    if (!c || c.st.result || ui.anim || c.st.offer >= 0) return false;
     if (c.mode === 'online') return !!(net.snap && net.snap.myTurn) && !net.busy;
     if (c.mode === 'two') return true;
     return c.st.turn === c.my && !ui.thinking;
@@ -616,6 +642,7 @@
     const b = e.target.closest('.board[data-board="play"]');
     if (!b || e.button > 0) return;
     const c = cur();
+    if (c && !c.st.result && c.st.offer >= 0 && $('.offerbar')) { toast('Accept or decline the draw first'); return; }
     if (!canIAct(c)) return;
     const s = sqAt(b, e.clientX, e.clientY);
     if (s < 0) return;
@@ -641,7 +668,7 @@
       const to = sqAt(d.b, e.clientX, e.clientY);
       const c = cur();
       const legal = R.legal(c.st).filter(m => m.path[0] === d.s && m.path[m.path.length - 1] === to);
-      if (legal.length === 1) { ui.sel = null; playMove(c, legal[0], true); return; }
+      if (legal.length === 1 && canIAct(c)) { ui.sel = null; playMove(c, legal[0], true); return; }
       d.el.classList.remove('drag'); d.el.style.transform = '';
       if (!legal.length && to >= 0 && to !== d.s) FX.play('error');
       ui.sel = { from: d.s, prefix: [d.s] };
@@ -731,7 +758,7 @@
     if (c.mode !== 'online' && store.settings.coach || c.mode === 'online' && store.settings.coach) requestCoach(c);
     if (!g || c.mode !== 'computer' || st.result) return;
     if (st.offer >= 0 && st.offer === g.my) { computerAnswersDraw(); return; }
-    if (st.turn === g.my || ui.thinking) return;
+    if (st.turn === g.my || ui.thinking || document.hidden) return;
     ui.thinking = true;
     const myGen = ui.gen;
     const lv = L.byId(g.level);
@@ -763,6 +790,10 @@
       save();
       toast(accept ? 'The computer accepts the draw' : 'The computer declines the draw');
       renderPlay(); afterChange();
+    }).catch(() => { // no answer: the offer lapses, so the game can go on
+      if (myGen !== ui.gen || !store.game || store.game.st !== st) return;
+      ui.thinking = false; store.game.st = R.act(st, 1 - st.offer, { draw: 'decline' }); save();
+      toast('The computer declines the draw'); renderPlay(); afterChange();
     });
   }
   // coach: look at every position once, grade the move that was played from it
@@ -821,7 +852,7 @@
       else {
         toast('Looking…');
         const ply = c.st.ply;
-        coach.run(c.st, { ms: 500 }).then(r => { const now = cur(); if (now && now.st.ply === ply && r.move) { ui.hint = { ply, path: r.move.path }; renderPlay(); } });
+        coach.run(c.st, { ms: 500 }).then(r => { const now = cur(); if (now && now.st.ply === ply && r.move) { ui.hint = { ply, path: r.move.path }; renderPlay(); } }).catch(() => {});
       }
       return;
     }
@@ -1157,7 +1188,8 @@
       if (g.anal[i] && g.anal[i].g) continue;
       ui.rvBusy = Math.round(i / Math.max(1, n) * 100) + '%';
       if (ui.tab === 'review') renderReview();
-      const r = await coach.run(s, { ms: 300, multi: true });
+      let r = null;
+      try { r = await coach.run(s, { ms: 300, multi: true }); } catch (e) { r = null; }
       if (!r || !r.move) continue;
       if (!g.anal[i]) g.anal[i] = { e: s.turn === 0 ? r.score : -r.score, b: r.move.path, pv: r.pv, d: r.depth };
       const roots = (r.roots || []).map(x => ({ p: x.move && x.move.path, c: x.move && x.move.caps, s: x.score }));
@@ -1191,7 +1223,13 @@
     let dots = [], sel = null;
     if (!edit && ui.an.sel != null) {
       sel = ui.an.sel;
-      legal.filter(m => m.path[0] === sel).forEach(m => dots.push({ sq: m.path[m.path.length - 1], kind: m.caps.length ? 'cap' : '' }));
+      const pre = ui.an.pre || [sel], byFinal = {};
+      legal.filter(m => startsWith(m.path, pre)).forEach(m => { const f = m.path[m.path.length - 1]; (byFinal[f] = byFinal[f] || []).push(m); });
+      for (const f in byFinal) {
+        const grp = byFinal[f];
+        dots.push({ sq: +f, kind: grp[0].caps.length ? 'cap' : '' });
+        if (grp.length > 1) grp.forEach(m => { const nx = m.path[pre.length]; if (nx !== +f) dots.push({ sq: nx, kind: 'step' }); });
+      }
     }
     const arrows = !edit && res && res.r.move ? [{ path: res.r.move.path }] : [];
     const size = wide ? fitBoard(vAn, 0, 360 + 18) : fitBoard(vAn, 44 + 8 + (edit ? 50 + 44 + 44 : 96 + 44) + 30, 0);
@@ -1227,7 +1265,7 @@
     }
   }
   const anKey = st => R.posKey(st.board, st.turn) + '|' + st.variant + '|' + st.ply;
-  function anSet(st) { store.an.st = st; ui.an.sel = null; save(); renderAnalyze(); }
+  function anSet(st) { store.an.st = st; ui.an.sel = null; ui.an.pre = null; save(); renderAnalyze(); }
   vAn.addEventListener('change', e => {
     if (e.target.id === 'an-var') { store.an = { st: R.newGame(e.target.value), flip: false }; ui.an.sel = null; save(); renderAnalyze(); }
   });
@@ -1266,7 +1304,7 @@
   });
   vAn.addEventListener('pointerup', e => {
     const bEl = e.target.closest('.board[data-board="an"]');
-    if (!bEl) return;
+    if (!bEl || ui.an.busy) return;
     const an = anState(), st = an.st;
     const s = sqAt(bEl, e.clientX, e.clientY);
     if (s < 0) return;
@@ -1284,15 +1322,25 @@
     if (st.result) return;
     const legal = R.legal(st);
     if (ui.an.sel != null) {
-      const ms = legal.filter(m => m.path[0] === ui.an.sel && m.path[m.path.length - 1] === s);
-      if (ms.length) {
-        const m = ms[0];
+      const go = m => {
         const bEl2 = document.querySelector('.board[data-board="an"]');
-        ui.an.sel = null;
-        animateMove(bEl2, m, () => anSet(R.act(st, st.turn, { path: m.path })));
-        return;
+        ui.an.sel = null; ui.an.pre = null; ui.an.busy = true; // taps wait until the slide has landed
+        animateMove(bEl2, m, () => { ui.an.busy = false; if (store.an && store.an.st === st) anSet(R.act(st, st.turn, { path: m.path })); else if (ui.tab === 'analyze') renderAnalyze(); });
+      };
+      // as on the Play tab: when two capture routes end on the same square, the first landing square picks the route
+      const pre = ui.an.pre || [ui.an.sel];
+      const cands = legal.filter(m => startsWith(m.path, pre));
+      const finals = cands.filter(m => m.path.length > pre.length && m.path[m.path.length - 1] === s);
+      if (finals.length === 1) { go(finals[0]); return; }
+      const steps = cands.filter(m => m.path.length > pre.length && m.path[pre.length] === s);
+      if (steps.length) {
+        const pre2 = pre.concat([s]), left = cands.filter(m => startsWith(m.path, pre2));
+        if (left.length === 1) { go(left[0]); return; }
+        ui.an.pre = pre2; renderAnalyze(); return;
       }
+      if (finals.length > 1) { toast('Two ways to get there: tap the first landing square'); return; }
     }
+    ui.an.pre = null;
     const x = st.board[s];
     if (x && (x > 0) === (st.turn === 0) && legal.some(m => m.path[0] === s)) { ui.an.sel = s; FX.play('tap'); renderAnalyze(); return; }
     if (x && (x > 0) === (st.turn === 0) && legal.length && legal[0].caps.length) { toast('A jump is compulsory'); FX.play('error'); }
@@ -1355,7 +1403,8 @@
     if (ui.pz.sel != null) {
       const ms = legal.filter(m => m.path[0] === ui.pz.sel && m.path[m.path.length - 1] === s);
       if (ms.length) {
-        const m = ms[0];
+        // two capture routes to the same square: either counts, and the solution's own route keeps the replay on track
+        const m = ms.find(x => p.sol.some(y => R.samePath(x.path, y))) || ms[0];
         ui.pz.sel = null;
         const ok = p.sol.some(x => R.samePath(x, m.path)) || p.sol.some(x => x[0] === m.path[0] && x[x.length - 1] === m.path[m.path.length - 1]);
         ui.pz.busy = true;

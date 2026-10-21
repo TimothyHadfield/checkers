@@ -3,7 +3,7 @@
 (function (G) {
 'use strict';
 if (G.TABLE && G.TABLE.version) return;
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 const doc = () => G.document;
 
 // ---------- pure helpers (tested in node) ----------
@@ -241,7 +241,7 @@ function flip(el, down) {
   if (!animOn()) { el.classList.add('tbl-instant'); el.classList.toggle('is-down', want); void el.offsetWidth; el.classList.remove('tbl-instant'); return Promise.resolve(); }
   el.classList.toggle('is-down', want);
   const inner = el.querySelector('.tbl-inner');
-  return new Promise(res => { const t = setTimeout(res, 520); if (inner) inner.addEventListener('transitionend', () => { clearTimeout(t); res(); }, { once: true }); });
+  return new Promise(res => { const t = setTimeout(res, 520); if (inner) { const end = e => { if (e.target !== inner) return; inner.removeEventListener('transitionend', end); clearTimeout(t); res(); }; inner.addEventListener('transitionend', end); } });
 }
 
 // Fly a ghost from `from` to `to`. Uses FX.flyTo when present (it follows the FX Animations setting).

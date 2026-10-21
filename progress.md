@@ -1,7 +1,7 @@
 # Checkers Lab — progress
 
 ## START HERE
-Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-20 (real-table look).
+Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-20 (edge-case pass).
 Live: https://timothyhadfield.github.io/checkers/ · Repo: https://github.com/TimothyHadfield/checkers
 
 ## Goal right now
@@ -38,6 +38,7 @@ Checkers is very drawish at the top (it is solved as a draw), so strong levels d
 - "add risk, clue, battleship, connect four, stratego, clue, checkers, pandemic, splendor, king of tokyo, 7 wonders, and evolution to the list of games."
 - "add opptional sounds you can add to the games that reflect what's happening in the game accurately as well as win celebrations, and other fun annimations to go along with everything. Just make sure everything is customizable in the settings so the user can play as preffered." (2026-10-20)
 - "make sure that each of the games also have a look to them so that the game (either board or card layout) looks almost identical to how the board or card layout looks like in real life ... It should look kind of like you're looking through a camera that is connected to a user's glasses that is playing in real life (not actually, but the layout and style of everything should be similar)." (2026-10-20)
+- "Could you focus on making each game perfect especially in scenarios that the game doesn't expect or are a little weird." (2026-10-20)
 - From the briefs: odds/numbers where the decision is made; computer players at measured strength; a study mode (points lost, hint, best move afterwards); a real-table companion; dark phone-first look with the Hub tokens; $0; no copyrighted art or rulebook text.
 
 ## Traps
@@ -83,13 +84,30 @@ Verified with a WebKit script (scratchpad `design/checkers/shots.mjs`, before/af
 Computer/opponent moves use the same sounds at 0.85 volume. Animations off = `html.fx-still` (all CSS transitions/keyframes off, moves instant, sounds keep pace); Fast = `html.fx-fast`.
 
 ## Real-table look (2026-10-20) — done
-Game in progress sits on a wooden table (`css/table.css` + `js/table.js` = shared `_table` 1.0.0, copied unchanged; `.gitattributes` keeps them and `js/fx.js` LF — recopy byte for byte). Board: walnut frame + inlay, grained squares (index.html `.board-wrap`). Pieces: `pieceSVG` in app.js (shadow, side wall, fluted rim; king = two stacked discs + stamped crown). Captured checkers: `pileHTML` stacks of 4 in front of the capturer; a taken piece flies there (`FX.flyTo`). Helpers smoked glass; laptop move list = paper scoresheet; phone landscape = `#game.land` grid. Setup/online lobby keep the plain look. Research + shots: scratchpad `table/checkers/` (real.md, before/, after3/).
+Game in progress sits on a wooden table (`css/table.css` + `js/table.js` = shared `_table` (recopied 1.0.1 in the edge pass; Checkers has no flip cards), copied unchanged; `.gitattributes` keeps them and `js/fx.js` LF — recopy byte for byte). Board: walnut frame + inlay, grained squares (index.html `.board-wrap`). Pieces: `pieceSVG` in app.js (shadow, side wall, fluted rim; king = two stacked discs + stamped crown). Captured checkers: `pileHTML` stacks of 4 in front of the capturer; a taken piece flies there (`FX.flyTo`). Helpers smoked glass; laptop move list = paper scoresheet; phone landscape = `#game.land` grid. Setup/online lobby keep the plain look. Research + shots: scratchpad `table/checkers/` (real.md, before/, after3/).
 - Trap: pieces now carry `data-side`; the `.pile` element is the flight target.
+
+## Edge-case pass (2026-10-20) — done
+50 weird scenarios (scratchpad `edge/checkers/scenarios.md`), checked in WebKit by `edge/checkers/edge.mjs` (57 checks) + the node tests. 9 failed, all fixed:
+| Scenario | Was | Now |
+|---|---|---|
+| Two players, draw offer open, board tapped | uncaught error | "Accept or decline the draw first"; nobody moves while an offer is open (online too) |
+| "Medium computer" at 320 px, phone sideways, 200% zoom | name cut | name never cut: the count line shortens, then the captured stacks slide together (last stack stays whole) |
+| Same game in two tabs | stale tab could overwrite moves | `storage` event reloads the game; only the visible tab plays the computer |
+| Back with a Resign/Quit/Leave box open | left the site | the box has its own history entry; Back closes it |
+| Analyze: two capture routes to one square | could not pick the second route | tap the first landing square, as on Play |
+| Analyze: second move tapped during a slide | replaced the first move | taps wait for the slide |
+| Review "Analyze" when the engine fails | stuck on "Analyzing… 0%" forever | carries on (main-thread fallback) |
+| Computer fails to answer a draw offer | game stuck | offer lapses ("declines") |
+| Puzzle solved by the other capture route | replay could stop | solution's own route is used |
+Passed as-is: every ending's end card, first-move win, empty Analyze position, long 160-ply game, rapid taps/Undo/Start/Hint, resign while thinking, reload mid-think/mid-slide, storage blocked, corrupt saves, offline online-room create, rotate mid-slide, 320–1920 px, light preference.
+- Trap: headless WebKit on a busy laptop drops frames, so Playwright clicks time out; the harness clicks with `force` / DOM clicks and waits longer. Rerun before "fixing".
 
 ## NOT verified
 - Real-table look on Tim's iPhone; no 3-D camera tilt (taps map by screen rect, a tilt would mis-map them).
 - On Tim's real iPhone (only Safari's engine at iPhone size, headless). Sounds never heard by a person (headless WebKit on Windows has no Web Audio; Chromium counted 7 real plays).
 - Sounds/effects in a browser: only the play tab vs computer (error, double jump, crown, win) was driven; puzzles, analyze, online turn chime and draw sound are covered by node tests / code reading only.
+- Edge pass: two real phones online (host leaves, AFK, slow network), a long emoji name online, page left in the background 10 min; the two-tab fix only in one browser profile.
 - FMJD 2024 extra 5-move rule (lone king on the long diagonal) not implemented.
 - Russian/Brazilian perft has no published table to compare with (engine and rules generator agree).
 - Strength numbers for the other rule sets (only American measured).

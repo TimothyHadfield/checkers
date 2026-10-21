@@ -23,3 +23,9 @@
 - **Built:** wooden table under a game in progress (shared `_table` kit copied unchanged to css/table.css + js/table.js); walnut-framed board with grain; checkers drawn as real discs (side wall, fluted rim, rings), kings two discs stacked; captured checkers stacked on the table in front of the capturer and taken ones fly there; helpers as smoked glass, laptop move list as a paper scoresheet; phone-landscape layout (board left). fx.js recopied (1.0.3, data-fxspeed). `.gitattributes` keeps the shared copies LF.
 - **Verified:** WebKit before/after shots (setup, mid, late, end, 10×10, Russian) at 393×659, 1280×800, 320×568, 659×393: no overflow, no page scroll, no console errors; capture tap → piece flies to pile, count 1→2 (animations on and off); reviewer agent two rounds; 42/42 node tests.
 - **Open:** Tim's look on his phone; no 3-D tilt (tap mapping).
+
+## 2026-10-20 — edge-case pass (builder for the portfolio manager)
+- **Asked:** Tim: "Could you focus on making each game perfect especially in scenarios that the game doesn't expect or are a little weird."
+- **Built:** `_table` 1.0.1 recopied; app.js: no moves while a draw offer is open (+ message), two-tab sync, Back closes confirm boxes, Analyze route choice + slide guard, Review analysis survives an engine failure, lapsed draw answer, puzzle solution route; index.html: player rows never cut the name (count line shortens, stacks slide together).
+- **Verified:** 50 scenarios / 57 WebKit checks (scratchpad `edge/checkers/edge.mjs`, results-*.json, shots/): 9 failed before, all pass after; 42/42 node tests; layouts at 320×568, 393×659, 659×393, 568×320, 640×400, 1280×800, 1920×1080.
+- **Open:** real online play on two phones; Tim's look at the squeezed captured stacks.
