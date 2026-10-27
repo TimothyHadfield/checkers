@@ -3,7 +3,7 @@
 (function (G) {
 'use strict';
 if (G.TABLE && G.TABLE.version) return;
-const VERSION = '1.0.1';
+const VERSION = '1.0.2';
 const doc = () => G.document;
 
 // ---------- pure helpers (tested in node) ----------
@@ -180,7 +180,14 @@ function fan(el, cards, o) {
     els.forEach((e, i) => e.addEventListener('click', () => { api.select(i); if (o.onPick) o.onPick(i, e, api.selected()); }));
   }
   api.layout();
-  if (G.ResizeObserver) { const ro = new G.ResizeObserver(() => api.layout()); ro.observe(el); api.disconnect = () => ro.disconnect(); }
+  if (G.ResizeObserver) {
+    // relayout on the next frame, not inside the observer: layout() sets el's height, and doing that
+    // inside the callback makes WebKit throw "ResizeObserver loop completed with undelivered notifications"
+    const later = G.requestAnimationFrame ? f => G.requestAnimationFrame(f) : f => setTimeout(f, 16);
+    let queued = false, live = true;
+    const ro = new G.ResizeObserver(() => { if (queued) return; queued = true; later(() => { queued = false; if (live) api.layout(); }); });
+    ro.observe(el); api.disconnect = () => { live = false; ro.disconnect(); };
+  }
   return api;
 }
 
