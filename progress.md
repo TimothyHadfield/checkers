@@ -44,6 +44,7 @@ Checkers is very drawish at the top (it is solved as a draw), so strong levels d
 - From the briefs: odds/numbers where the decision is made; computer players at measured strength; a study mode (points lost, hint, best move afterwards); a real-table companion; dark phone-first look with the Hub tokens; $0; no copyrighted art or rulebook text.
 
 ## Traps
+- **online.js cache stamp (2026-10-27):** every import of `js/online.js` uses `?v=a3d0418b`, the `_online` content stamp. After a re-copy: put the new stamp from `node ../_online/tools/stamp.mjs` there, bump the importing file's `?v=` (and pwa.js `data-version`), then `node ../_online/tools/stamp.mjs --check .` must say OK.
 - `js/online.js` is a copy of `../_online/online.js`: never edit here.
 - The engine has its own move generator; any rules change must go into both `rules.js` and `engine.js`, then run the perft tests.
 - Level strength depends on the engine: re-measure after any engine change (see CLAUDE.md).
