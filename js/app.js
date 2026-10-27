@@ -1520,4 +1520,17 @@
       renderPlay();
     }).catch(() => { net.connecting = false; store.online = false; ui.online = false; save(); renderPlay(); });
   }
+  // ================================================================== home-screen app (js/pwa.js, shared _pwa kit)
+  // A new build may reload the page by itself only when nothing would be lost: no online room, no sheet or
+  // confirm box, nothing moving or thinking, no text field in use, and either Settings is open or the Play
+  // tab has no game in progress. Any other time the kit shows "New version — tap to reload" instead.
+  if (window.PWA) window.PWA.safeToReload = () => {
+    if (ui.online || net.room || net.connecting || store.online) return false;
+    if (layerOn() || $('#sheet') || ui.thinking || ui.anim || drag) return false;
+    const f = document.activeElement;
+    if (f && /^(INPUT|TEXTAREA|SELECT)$/.test(f.tagName)) return false;
+    if (ui.tab === 'settings') return true;
+    return ui.tab === 'play' && (!store.game || !!store.game.st.result);
+  };
+  window.CkApp = { cur, onSquare, ui }; // for tests/pwa-check.json
 })();

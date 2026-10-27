@@ -1,0 +1,10 @@
+{
+  "repo": "checkers",
+  "ready": "!!(window.CkApp && document.querySelector('#v-play.on') && (document.querySelector('[data-start]') || document.querySelector('.board[data-board=play] .pc')))",
+  "play": [
+    "(async () => { const w = ms => new Promise(r => setTimeout(r, ms)); const s = document.querySelector('[data-start]'); if (s) s.click(); for (let i = 0; i < 100; i++) { const c = CkApp.cur(); if (c && c.st.turn === c.my && !CkApp.ui.thinking && !CkApp.ui.anim) break; await w(100); } const c = CkApp.cur(); window.__plyBefore = c.st.moves.length; const m = CkRules.legal(c.st)[0]; CkApp.onSquare(m.path[0]); await w(100); CkApp.onSquare(m.path[1]); })()"
+  ],
+  "played": "(() => { const c = CkApp.cur(); return !!c && c.st.moves.length >= window.__plyBefore + 2 && c.st.turn === c.my && !CkApp.ui.thinking && !CkApp.ui.anim; })()",
+  "safe": "document.querySelector('#tabs [data-tab=settings]').click()",
+  "debug": "JSON.stringify((() => { const c = CkApp.cur(); return { n: c.st.moves.length, before: window.__plyBefore, turn: c.st.turn, my: c.my, th: CkApp.ui.thinking, anim: CkApp.ui.anim, toast: (document.querySelector('.toast') || {}).textContent }; })())"
+}
