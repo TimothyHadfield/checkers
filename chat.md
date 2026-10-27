@@ -35,3 +35,9 @@
 - **Built:** app.js: Review on phone puts the graph between « ‹ and › » (board 197 → 312 px); Review/Analyze/Puzzles sideways get a board-left layout (182 → 297 px, nothing under the tab bar); king crown 56% → 78%. index.html: `.rvnav`, `.split.land` CSS; app.js?v=7.
 - **Verified:** audit + before/after WebKit shots at 393×659, 320×568, 659×393, 1280×800, 1440×900 (scratchpad `vis/checkers/`); layout-test.mjs 5 fails before, 11/11 after in WebKit and Chromium; sideways set-up taps hit the right square; 42/42 node tests; one reviewer agent.
 - **Open:** Tim's look; the Play board on a portrait phone is width-limited (343 px), no zoom added.
+
+## 2026-10-27 — home-screen app + offline (`_pwa` kit pilot, builder for the portfolio manager)
+- **Asked:** Tim: "start building every single improvement you can think of after your competitor analysis." Plan item 3: installable on the iPhone home screen + offline play vs computer, never a stale build.
+- **Built:** copied `sw.js`, `js/pwa.js`, `tools/pwa-check.mjs`, `tools/make-icons.mjs` from `_pwa` 1.1.0; `manifest.webmanifest` (name "Checkers Lab"), `icons/` (192/512/maskable; apple-touch-icon kept); head tags; `PWA.safeToReload` + `window.CkApp` test hook at the end of app.js; app.js?v=8, pwa build 8.
+- **Verified:** `node tools/pwa-check.mjs` 3/17 before → 18/18 (WebKit and Chromium 393×659): offline cold open, a move answered by the computer (Web Worker) offline, weak signal, new deploy picked up in one load, mid-game pill, safe-point auto-reload. 42/42 node tests.
+- **Open:** real iPhone home-screen app; Tim's look at the pill.

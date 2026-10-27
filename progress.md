@@ -1,7 +1,7 @@
 # Checkers Lab — progress
 
 ## START HERE
-Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-21 (visibility pass).
+Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-27 (home-screen app + offline).
 Live: https://timothyhadfield.github.io/checkers/ · Repo: https://github.com/TimothyHadfield/checkers
 
 ## Goal right now
@@ -21,6 +21,7 @@ learn from a coach, review, puzzles and a position editor. Waiting for Tim's loo
 | Puzzles: 158 from self-play, all five rule sets | Done |
 | Online rooms via `../_online/online.js` (copied unchanged) | Done; any mix of you / computer / friend |
 | Tests: 38 node tests; 10 deliberate breakages each caught | Done |
+| Home-screen app + offline vs computer (shared `_pwa` kit 1.1.0, 2026-10-27) | Done; `tools/pwa-check.mjs` 3/17 before → 18/18 |
 
 ### Measured strength (American, 24 games per match, random 4-move openings, colours swapped, draw = ½)
 | Match | W-D-L (higher level first) | Score |
@@ -50,6 +51,7 @@ Checkers is very drawish at the top (it is solved as a draw), so strong levels d
 - Headless WebKit clicks can time out when the CPU is busy (other agents); rerun rather than "fix" the page.
 - Pieces have `pointer-events: none`; tests click `.sq[data-s=N]` (square index), not the piece.
 - History: sheets and the online screen push a `{layer}` entry so phone Back closes them first; closing them by button drops that entry with `popQuiet()`. Changing tab from a layer uses replaceState. Keep this when adding new overlays.
+- **Home-screen app / offline (2026-10-27):** `sw.js`, `js/pwa.js`, `tools/pwa-check.mjs`, `tools/make-icons.mjs` are verbatim copies of `Board and Card Games/_pwa` (repo game-pwa); never edit here. `pwa.js` is a plain (not defer) script right before app.js, so `window.PWA` exists when app.js runs; bump its `data-version` with app.js's `?v=`. `PWA.safeToReload` (end of app.js): true only with no online room, no sheet/confirm layer, nothing thinking/animating/dragging, no focused field, and Settings open or Play with no game in progress. `window.CkApp = {cur, onSquare, ui}` exists for `tests/pwa-check.json`. Test: `node tools/pwa-check.mjs` (~1 min; `--engine chromium`).
 
 ## Decisions
 - Draw rules are applied automatically (no referee to claim them).
@@ -122,6 +124,7 @@ Play tab was already fine (phone width-limited 343 px; laptop 602/702 px). `layo
 - FMJD 2024 extra 5-move rule (lone king on the long diagonal) not implemented.
 - Russian/Brazilian perft has no published table to compare with (engine and rules generator agree).
 - Strength numbers for the other rule sets (only American measured).
+- Home-screen app (2026-10-27): never added to a real iPhone home screen; offline + new-build pickup checked only headless (WebKit/Chromium) against a Pages-like local server and the live worker. The "New version — tap to reload" pill is the kit's plain look; Tim hasn't seen it.
 
 ## Rejected / parked
 - ~~Opening book, endgame databases, Elo, clocks~~ — see `docs/ideas.md` for reasons.
