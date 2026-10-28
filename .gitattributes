@@ -2,3 +2,11 @@ js/fx.js -text
 js/table.js -text
 css/table.css -text
 js/online.js -text
+sw.js -text
+js/pwa.js -text
+tools/pwa-check.mjs -text
+tools/make-icons.mjs -text
+js/coach.js -text
+css/coach.css -text
+js/profile.js -text
+css/profile.css -text
