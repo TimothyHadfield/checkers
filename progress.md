@@ -63,6 +63,7 @@ New rule sets (2026-10-28, 24 games, Hard vs Medium only, `tools/measured-italia
 
 - **Wave 3 (2026-10-28):** `R.MAIN_IDS` = the 5 tiles; `R.MORE_IDS` = pool, italian, spanish, flykings (behind the "More rules" tile / sheet); `R.VARIANT_IDS` = all 9 (Analyze list, rules table, tests). New variant flags: `noManTakesKing`, `prio` ('italian' | 'kings'), `mirror` (display + `sqName` only). Any tie-break change goes into both `prioFilter`s (rules.js and engine.js). YouTube links live in `js/coach-ck.js` (`vid()`); re-check them with `https://www.youtube.com/oembed?url=...&format=json`.
 - Port 47613 was taken by another project's server on 10-28 (Windows lets two servers bind it): pick another and pass `--directory`.
+- **Kit sweep 2026-10-28:** `_coach` 1.2.0 + `_pwa` 1.4.0 re-copied (pwa build 14); first-visit offer uses `place:'auto', avoid:['[data-start]']` (old `--coach-offer-bottom` override removed); offer clear of tab bar + Start at 393×659/320×568/659×393, Settings no sideways scroll at 320, pwa-check 18/18.
 
 ## Decisions
 - New rule sets sit behind one "More rules" tile so the Play screen keeps its height; "Kings fly" is listed there as a house rule (not a Settings switch) so the computer, Review, share links and online all see it as its own rule set.

@@ -1708,7 +1708,7 @@
   if (tour) {
     if (store.game && store.game.guided && !store.game.st.result) tour.resume(); // carry on after a reload
     else if (!store.game && !store.last && !store.online && P && !P.stats().games && !tour.seen() && (first || 'play') === 'play')
-      COACH.offer({ id: 'ck-first', title: 'New to checkers?', text: 'A guided first game against the Beginner computer, one step at a time.', yes: 'Teach me', no: 'No thanks', onYes: () => startGuided() });
+      COACH.offer({ id: 'ck-first', title: 'New to checkers?', text: 'A guided first game against the Beginner computer, one step at a time.', yes: 'Teach me', no: 'No thanks', onYes: () => startGuided(), place: 'auto', avoid: ['[data-start]'] });
   }
   if (store.online) {
     ui.online = true; net.connecting = true; renderPlay();
