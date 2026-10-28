@@ -1,0 +1,13 @@
+{
+ "variant": "pool",
+ "gamesPerPair": 24,
+ "date": "2026-10-28",
+ "pairs": {
+  "3v4": {
+   "score": 0.271,
+   "w": 5,
+   "d": 3,
+   "l": 16
+  }
+ }
+}

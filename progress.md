@@ -1,7 +1,7 @@
 # Checkers Lab — progress
 
 ## START HERE
-Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-27 (improvement pass: My stats, coach, Daily, ballot, share links, stronger Hard).
+Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-28 (wave 3: Pool, Italian, Spanish, Kings fly, videos, short-phone row).
 Live: https://timothyhadfield.github.io/checkers/ · Repo: https://github.com/TimothyHadfield/checkers
 
 ## Goal right now
@@ -22,6 +22,7 @@ learn from a coach, review, puzzles and a position editor. Waiting for Tim's loo
 | Online rooms via `../_online/online.js` (copied unchanged) | Done; any mix of you / computer / friend |
 | Tests: 48 node tests (`node --test "tests/*.test.*"`) | Done |
 | Home-screen app + offline vs computer (shared `_pwa` kit 1.2.0, byte-identical) | Done; `tools/pwa-check.mjs` 18/18 |
+| Wave 3 (2026-10-28): Pool, Italian, Spanish + American "Kings fly" house rule behind a "More rules" tile; Italian/Spanish boards mirrored; 103 puzzles for them; Videos section (5 YouTube links) in the rules sheet; My stats / Daily kept on short phones (moved into the Rules row) | Done; 65/65 node tests (17 new, 13 failed on the old build), pwa-check 18/18 |
 | Improvement pass (2026-10-27): My stats (`_profile` 1.1.0: local Elo, awards, streak, Daily), `_coach` (guided first game, full rules sheet for all 5 rule sets), Daily game, 3-move ballot switch, share a finished game as a link | Done; WebKit flow script 25/25 (scratchpad `improve/checkers/flows.mjs`) |
 
 ### Measured strength (American, 48 games per match, random 4-move openings, colours swapped, draw = ½; 2026-10-27)
@@ -35,6 +36,7 @@ learn from a coach, review, puzzles and a position editor. Waiting for Tim's loo
 | Expert vs Beginner | 48-0-0 | 100% |
 Budgets: Beginner depth 2 + noise 140, Easy depth 4 + noise 45, Medium 2,500 nodes + noise 15 (all game), Hard 100,000, Expert 450,000. Hard/Expert pick at random among moves within 0.10 men of the best for their first 8 plies (`optsFor` in levels.js), so no two games open the same. Level Elo shown in the app (Beginner anchored at 800): 800 / 1175 / 1325 / 1550 / 1575.
 Checkers is very drawish at the top (it is solved as a draw), so strong levels draw each other a lot.
+New rule sets (2026-10-28, 24 games, Hard vs Medium only, `tools/measured-italian.json` / `measured-pool.json`): Italian Hard 17-5-2 = **81%** (±16 at 95%), Pool Hard 16-3-5 = **73%** (±18). Other pairs and Spanish/Kings fly not measured.
 
 ## Standing instructions (Tim's words)
 - "add risk, clue, battleship, connect four, stratego, clue, checkers, pandemic, splendor, king of tokyo, 7 wonders, and evolution to the list of games."
@@ -59,7 +61,11 @@ Checkers is very drawish at the top (it is solved as a draw), so strong levels d
 - **What counts in My stats:** Hint or Undo used → "with help", not rated; guided games never count; no Undo in the Daily; quitting/New game vs the computer after your first own move (ballot moves don't count) = a loss; Analyze "play from here" games are "with help"; two-player games count with no winner; `g.counted` stops double counting.
 - Medium's strength now comes from noise 15 as well as its node budget; re-measure (`node tools/measure-levels.js 48 american 4`, ~45 min) after any engine or level change, then paste the JSON into `MEASURED` (a test checks every step ≥65%).
 
+- **Wave 3 (2026-10-28):** `R.MAIN_IDS` = the 5 tiles; `R.MORE_IDS` = pool, italian, spanish, flykings (behind the "More rules" tile / sheet); `R.VARIANT_IDS` = all 9 (Analyze list, rules table, tests). New variant flags: `noManTakesKing`, `prio` ('italian' | 'kings'), `mirror` (display + `sqName` only). Any tie-break change goes into both `prioFilter`s (rules.js and engine.js). YouTube links live in `js/coach-ck.js` (`vid()`); re-check them with `https://www.youtube.com/oembed?url=...&format=json`.
+- Port 47613 was taken by another project's server on 10-28 (Windows lets two servers bind it): pick another and pass `--directory`.
+
 ## Decisions
+- New rule sets sit behind one "More rules" tile so the Play screen keeps its height; "Kings fly" is listed there as a house rule (not a Settings switch) so the computer, Review, share links and online all see it as its own rule set.
 - Draw rules are applied automatically (no referee to claim them).
 - Russian king-only limit 15 moves (official text), not lidraughts' 16; Brazilian follows the CBJD rulebook.
 - Medium budget lowered from 12,000 to 2,500 nodes so it sits between Easy and Hard.
@@ -132,7 +138,8 @@ Play tab was already fine (phone width-limited 343 px; laptop 602/702 px). `layo
 - Strength numbers for the other rule sets (only American measured).
 - Home-screen app (2026-10-27): never added to a real iPhone home screen; offline + new-build pickup checked only headless (WebKit/Chromium) against a Pages-like local server and the live worker. The "New version — tap to reload" pill is the kit's plain look; Tim hasn't seen it.
 
-- Improvement pass: guided game, Daily, ballot, share link and My stats checked only headless (WebKit 393×659, 659×393, 320×568, 1440×900). On short phones (under 620 px tall) the title row with My stats / Daily is hidden; both stay reachable from Settings. Shared links never opened from a real message app. Expert vs Hard is only 56% (Expert ahead, but not by 65%).
+- Improvement pass: guided game, Daily, ballot, share link and My stats checked only headless (WebKit 393×659, 659×393, 320×568, 1440×900). (Fixed 2026-10-28: on short phones My stats / Daily now sit in the Rules row.) On phone landscape (659×393) Start still sits below the fold; the setup scrolls inside its own area, as before.
+- Wave 3: new rule sets never played by a person; Italian/Spanish draw limits partly our choice (docs/rules-check.md); strength ladder measured only for Hard vs Medium on Italian and Pool (small samples); the YouTube videos' content not watched (titles/channels checked via oembed); online rooms with a new rule set not tried on two phones. Shared links never opened from a real message app. Expert vs Hard is only 56% (Expert ahead, but not by 65%).
 
 ## Rejected / parked
 - ~~Endgame databases~~ — see `docs/ideas.md`. Elo (now a local rating in My stats) and the 3-move ballot were built in the 2026-10-27 pass at the manager's brief. ~~Clocks~~ — only wanted for online rooms, and `js/online.js` is not ours to change.

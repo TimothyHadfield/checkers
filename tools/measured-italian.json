@@ -1,0 +1,13 @@
+{
+ "variant": "italian",
+ "gamesPerPair": 24,
+ "date": "2026-10-28",
+ "pairs": {
+  "3v4": {
+   "score": 0.188,
+   "w": 2,
+   "d": 5,
+   "l": 17
+  }
+ }
+}
