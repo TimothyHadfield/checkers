@@ -20,7 +20,7 @@
 
   // ---- variant context
   let v = null, g = null, S = 0, N = 0, NB = null, ROW = null;
-  let MAN = 100, KING = 135, kingLimit = 0;
+  let MAN = 100, KING = 135, kingLimit = 0, noManKing = false;
   let advTab = [null, null], advLate = [null, null], kingTab = null, onMain = null, dblCorner = null, distTab = null;
   const FWD = [[0, 1], [2, 3]], ALL = [0, 1, 2, 3];
 
@@ -51,7 +51,7 @@
     const nv = R.V(id);
     if (v === nv) return;
     v = nv; g = R.geo(v.n); S = g.S; N = v.n; NB = g.nb; ROW = g.row;
-    kingLimit = v.kingLimit;
+    kingLimit = v.kingLimit; noManKing = !!v.noManTakesKing;
     MAN = 100;
     KING = v.flying ? (N === 10 ? 300 : 250) : 135;
     const mid = (N - 1) / 2;
@@ -129,6 +129,7 @@
       } else {
         const o = NB[cur * 4 + d];
         if (o < 0 || B[o] * gSg >= 0 || capt[o]) continue;
+        if (!king && noManKing && (B[o] === 2 || B[o] === -2)) continue; // Italian: a man may not take a king
         const l = NB[o * 4 + d];
         if (l < 0 || B[l] !== 0) continue;
         any = true;
@@ -162,6 +163,7 @@
       for (let i = 0; i < n; i++) if (mNc[gBase + i] === max) { if (w !== i) copyMove(gBase + i, gBase + w); w++; }
       n = mCount[p] = w;
     }
+    if (n > 1 && v.prio) n = mCount[p] = prioFilter(n);
     if (n > 1 && v.flying) n = mCount[p] = dedup(n);
     if (n && v.mandatory) return n;
     if (capsOnly) return n;
@@ -183,6 +185,24 @@
       }
     }
     return mCount[p];
+  }
+  // tie-breaks after "take the most" (same as CkRules.prioFilter): Italian king-captures-first, most kings,
+  // king met earliest; Spanish most kings. Captured values are in mCapV (in capture order).
+  function kingsOf(k) { let c = 0; for (let j = 0; j < mNc[k]; j++) if (mCapV[k * CAPMAX + j] === 2 || mCapV[k * CAPMAX + j] === -2) c++; return c; }
+  function firstKing(k) { for (let j = 0; j < mNc[k]; j++) if (mCapV[k * CAPMAX + j] === 2 || mCapV[k * CAPMAX + j] === -2) return -j; return 0; }
+  function keepBest(n, f) {
+    let best = -1e9;
+    for (let i = 0; i < n; i++) best = Math.max(best, f(gBase + i));
+    let w = 0;
+    for (let i = 0; i < n; i++) if (f(gBase + i) === best) { if (w !== i) copyMove(gBase + i, gBase + w); w++; }
+    return w;
+  }
+  function prioFilter(n) {
+    if (!mNc[gBase]) return n; // quiet moves (only when no capture exists) have no tie-break
+    if (v.prio === 'italian') n = keepBest(n, k => (mPiece[k] === 2 || mPiece[k] === -2 ? 1 : 0));
+    n = keepBest(n, kingsOf);
+    if (v.prio === 'italian') n = keepBest(n, firstKing);
+    return n;
   }
   // same pieces taken, same start and end square = one move (FMJD); different routes don't count twice
   function dedup(n) {

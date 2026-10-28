@@ -7,7 +7,7 @@
   let tour = null; // the guided first game (js/coach-ck.js + shared js/coach.js)
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const BUILD = '2026-10-27.11';
+  const BUILD = '2026-10-28.12';
 
   // ================================================================== sounds + effects (js/fx.js, all switchable in Settings)
   const FX = window.FX, SFX = window.CkSfx;
@@ -72,7 +72,7 @@
     const pending = new Map();
     function make() {
       try {
-        w = new Worker('js/worker.js?v=1');
+        w = new Worker('js/worker.js?v=2');
         w.onmessage = e => {
           const d = e.data || {};
           const p = pending.get(d.id);
@@ -227,9 +227,11 @@
   // ================================================================== board drawing
   function boardHTML(o) {
     const v = V(o.variant), g = R.geo(v.n), n = v.n, cell = 100 / n;
-    const pos = s => { const r = g.rc[s][0], c = g.rc[s][1]; return o.flip ? [n - 1 - r, n - 1 - c] : [r, c]; };
+    // Italian/Spanish boards are mirrored (a playing square in each player's right-hand corner): columns run the other way
+    const mir = v.mirror ? 1 : 0;
+    const pos = s => { const r = g.rc[s][0], c = mir ? n - 1 - g.rc[s][1] : g.rc[s][1]; return o.flip ? [n - 1 - r, n - 1 - c] : [r, c]; };
     const last = new Set(o.last || []);
-    let h = '<div class="board" data-board="' + (o.id || '') + '" data-n="' + n + '" data-flip="' + (o.flip ? 1 : 0) + '" style="--cell:' + cell + '%">';
+    let h = '<div class="board" data-board="' + (o.id || '') + '" data-n="' + n + '" data-flip="' + (o.flip ? 1 : 0) + '" data-mirror="' + mir + '" style="--cell:' + cell + '%">';
     for (let s = 0; s < g.S; s++) {
       const [r, c] = pos(s);
       // each dark square shows its own patch of the grain, like squares cut from one plank
@@ -267,6 +269,7 @@
     let c = Math.floor((x - rect.left) / rect.width * n), r = Math.floor((y - rect.top) / rect.height * n);
     if (r < 0 || c < 0 || r >= n || c >= n) return -1;
     if (flip) { r = n - 1 - r; c = n - 1 - c; }
+    if (boardEl.dataset.mirror === '1') c = n - 1 - c;
     return R.geo(n).idx[r * n + c];
   }
   // slide a piece along its path with its sounds (wood, one capture per jump, a ding when crowned);
@@ -284,6 +287,7 @@
       if (i >= move.path.length) { setTimeout(() => { SFX.endSounds(FX, p, vol); cb(); }, 70 * sp); return; }
       const s = move.path[i];
       let r = g.rc[s][0], c = g.rc[s][1];
+      if (boardEl.dataset.mirror === '1') c = n - 1 - c;
       if (flip) { r = n - 1 - r; c = n - 1 - c; }
       el.style.left = c * cell + '%'; el.style.top = r * cell + '%';
       SFX.hopSounds(FX, p, i - 1, vol, later);
@@ -427,9 +431,9 @@
   }
 
   // ---------------------------------------------------------------- setup
-  function miniBoard(n) {
+  function miniBoard(n, mirror) {
     let r = '<svg class="mini" viewBox="0 0 ' + n + ' ' + n + '"><rect width="' + n + '" height="' + n + '" fill="#e3cfa8"/>';
-    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if ((x + y) % 2) r += '<rect x="' + x + '" y="' + y + '" width="1" height="1" fill="#8a5a3b"/>';
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) if ((x + y + (mirror ? 1 : 0)) % 2) r += '<rect x="' + x + '" y="' + y + '" width="1" height="1" fill="#8a5a3b"/>';
     return r + '</svg>';
   }
   function levelNote() {
@@ -440,14 +444,18 @@
   }
   function renderSetup() {
     const s = store.settings, v = V(s.variant);
-    const vbtn = id => { const x = V(id); return '<button data-variant="' + id + '" aria-pressed="' + (s.variant === id) + '">' + miniBoard(x.n) + '<span style="min-width:0"><b>' + esc(x.name) + '</b><small>' + (id === 'casual' ? 'jumps optional' : x.n + '×' + x.n) + (id === 'casual' ? '' : x.flying ? ' · kings fly' : ' · short kings') + '</small></span></button>'; };
+    const vbtn = id => '<button data-variant="' + id + '" aria-pressed="' + (s.variant === id) + '">' + vTile(id) + '</button>';
+    // the extra rule sets sit behind one "More rules" tile; once picked, the tile shows the pick
+    const more = R.MORE_IDS.includes(s.variant);
+    const moreBtn = '<button data-more aria-pressed="' + more + '">' + (more ? vTile(s.variant) : miniBoard(8) + '<span style="min-width:0"><b>More rules</b><small>Pool, Italian…</small></span>') + '</button>';
+    const meBtns = '<button class="btn small pf-open" data-me>' + (P ? P.avatarSVG(P.avatar, 24) : '') + '<span>My stats</span></button><button class="btn small" data-daily>' + esc(dailyWord()) + '</button>';
     const sides = [['first', v.sides[0], 'moves first'], ['second', v.sides[1], ''], ['random', 'Random', '']];
     const two = s.mode === 'two';
     vPlay.innerHTML = '<div class="setup two">' +
       '<div class="hero"><img src="icon.svg" alt=""><div class="grow" style="min-width:0"><h1>Checkers Lab</h1><p>Every common rule set, a measured computer and a coach.</p></div>' +
-      '<button class="btn small pf-open" data-me>' + (P ? P.avatarSVG(P.avatar, 24) : '') + '<span>My stats</span></button><button class="btn small" data-daily>' + esc(dailyWord()) + '</button></div>' +
-      '<div class="panel"><div class="row"><span class="label grow">Rules</span>' + qBtn('American checkers is the US and UK game. International (10×10), Russian and Brazilian are the draughts played in most of the world. Casual is the kitchen-table version where jumping is optional. The full rules of each are in Settings.') + '</div>' +
-      '<div class="vgrid">' + R.VARIANT_IDS.map(vbtn).join('') + '</div><p class="vblurb">' + esc(v.blurb) + (ballotOn(s.variant) ? ' 3-move ballot on.' : '') + '</p></div>' +
+      meBtns + '</div>' +
+      '<div class="panel"><div class="row"><span class="label grow">Rules</span><span class="shortonly">' + meBtns + '</span>' + qBtn('American checkers is the US and UK game. International (10×10), Russian and Brazilian are the draughts played in most of the world. Casual is the kitchen-table version where jumping is optional. More rules: Pool, Italian, Spanish and a kings-fly house rule. The full rules of each are in Settings.') + '</div>' +
+      '<div class="vgrid">' + R.MAIN_IDS.map(vbtn).join('') + moreBtn + '</div><p class="vblurb">' + esc(v.blurb) + (ballotOn(s.variant) ? ' 3-move ballot on.' : '') + '</p></div>' +
       '<div class="panel">' +
       '<div class="label">Opponent</div><div class="seg" data-set="mode"><button data-v="computer" aria-pressed="' + !two + '">Computer</button><button data-v="two" aria-pressed="' + two + '">Two players<small>same device</small></button></div>' +
       (two ? '' :
@@ -457,6 +465,24 @@
       '<button class="btn primary" data-start style="width:100%">Start</button>' +
       '<button class="btn" data-on="open" style="width:100%">Play online</button>' +
       '</div></div>';
+  }
+  function vSub(id) {
+    const x = V(id);
+    if (id === 'casual') return 'jumps optional';
+    if (id === 'flykings') return 'house rule';
+    return x.n + '×' + x.n + (x.flying ? ' · kings fly' : ' · short kings');
+  }
+  const vTile = id => miniBoard(V(id).n, V(id).mirror) + '<span style="min-width:0"><b>' + esc(V(id).name) + '</b><small>' + esc(vSub(id)) + '</small></span>';
+  // "More rules": the other rule sets and the American house rule, each with its one-line explanation
+  function moreSheet() {
+    const s = store.settings;
+    const row = id => '<button data-variant="' + id + '" aria-pressed="' + (s.variant === id) + '">' + vTile(id) + '</button><p class="vblurb">' + esc(V(id).blurb) + '</p>';
+    sheet('More rules', '<div class="vgrid morelist"><span class="label">Rule sets</span>' + ['pool', 'italian', 'spanish'].map(row).join('') +
+      '<span class="label">House rule</span>' + row('flykings') + '</div>', e => {
+      const b = e.target.closest('[data-variant]');
+      if (!b) return;
+      store.settings.variant = b.dataset.variant; save(); closeSheet(); renderPlay();
+    });
   }
   // the 3-move ballot (Settings): American and Casual games start from a random opening of js/openings.js
   const ballotOn = variant => store.settings.ballot && (variant === 'american' || variant === 'casual');
@@ -499,6 +525,7 @@
       store.settings[key] = key === 'level' ? Number(segb.dataset.v) : segb.dataset.v;
       save(); renderPlay(); return;
     }
+    if (t.closest('[data-more]')) { moreSheet(); return; }
     if (t.closest('[data-start]')) { startGame(); return; }
     if (t.closest('[data-me]')) { if (P) P.openPanel(); return; }
     if (t.closest('[data-daily]')) { startDaily(); return; }
@@ -1099,6 +1126,15 @@
       'Men capture backward too. Kings fly. You must take the most pieces.',
       'A man is crowned only if it ends its move on the far row.',
       'Draws: same position three times; 20 moves each with only kings and no captures; 2 pieces or fewer (with a king) vs a lone king: 5 moves; 3 pieces vs a lone king on the long diagonal: 5 moves.'],
+    pool: ['8×8 board, 12 men each. Black moves first.', 'Men capture forward and backward. Kings fly any distance.',
+      'Capturing is compulsory, but you may choose any capture. A man crossing the far row mid-capture stays a man.',
+      'Draws: same position three times; 15 moves each with only kings; 3 kings vs a lone king: 13 moves.'],
+    italian: ['8×8 board with a playing square in each right-hand corner. White moves first.', 'Men move and capture forward only; kings move one square. A man may not capture a king.',
+      'Take the most pieces; if equal, capture with a king; then take the most kings; then meet a king first.',
+      'Draws: same position three times; 40 moves each with only kings and no captures.'],
+    spanish: ['8×8 board with a playing square in each right-hand corner. White moves first.', 'Men move and capture forward only. Kings fly.',
+      'Take the most pieces; if equal, the most kings.', 'Draws: same position three times; 20 moves each with only kings; 3 kings (one on the long diagonal) vs a lone king: 13 moves.'],
+    flykings: ['House rule: American checkers, but kings move and jump any distance.', 'Everything else is the same as American.'],
     casual: ['American checkers, but jumping is optional: you can make a plain move even when a jump is there.',
       'If you start a jump, you finish the whole chain.', 'Everything else (kings, crowning, draws) is the same as American.'],
   };

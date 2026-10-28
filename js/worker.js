@@ -1,5 +1,5 @@
 /* Web Worker: runs the engine off the main thread. Message: {id, state, opts} -> {id, r} */
-importScripts('rules.js?v=1', 'engine.js?v=1');
+importScripts('rules.js?v=2', 'engine.js?v=2');
 self.onmessage = function (e) {
   const d = e.data || {};
   try {

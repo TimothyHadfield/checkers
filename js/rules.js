@@ -47,8 +47,38 @@
       sides: ['Black', 'White'], notation: 'num', kingLimit: 80, endgame: 'none',
       blurb: 'American rules, but you never have to jump.',
     },
+    // ---- added 2026-10-28 (wave 3). Sources: docs/rules-check.md
+    pool: {
+      id: 'pool', name: 'Pool', long: 'Pool checkers', n: 8, rows: 3,
+      flying: true, menBack: true, majority: false, crownMid: false, crownEnd: false, mandatory: true,
+      sides: ['Black', 'White'], notation: 'num', kingLimit: 30, endgame: 'pool',
+      blurb: '8×8. Black first. Men jump backwards; kings fly; take any jump.',
+    },
+    italian: {
+      id: 'italian', name: 'Italian', long: 'Italian draughts', n: 8, rows: 3,
+      flying: false, menBack: false, majority: true, crownMid: false, crownEnd: true, mandatory: true,
+      noManTakesKing: true, prio: 'italian', mirror: true,
+      sides: ['White', 'Black'], notation: 'alg', kingLimit: 80, endgame: 'none',
+      blurb: '8×8. White first. Men can’t take kings; take the most, with a king if you can.',
+    },
+    spanish: {
+      id: 'spanish', name: 'Spanish', long: 'Spanish draughts', n: 8, rows: 3,
+      flying: true, menBack: false, majority: true, crownMid: false, crownEnd: false, mandatory: true,
+      prio: 'kings', mirror: true,
+      sides: ['White', 'Black'], notation: 'alg', kingLimit: 40, endgame: 'spanish',
+      blurb: '8×8. White first. Kings fly; take the most pieces, then the most kings.',
+    },
+    flykings: {
+      id: 'flykings', name: 'Kings fly', long: 'American checkers, kings fly (house rule)', n: 8, rows: 3,
+      flying: true, menBack: false, majority: false, crownMid: false, crownEnd: true, mandatory: true,
+      sides: ['Black', 'White'], notation: 'num', kingLimit: 80, endgame: 'none',
+      blurb: 'House rule: American, but kings move and jump any distance.',
+    },
   };
-  const VARIANT_IDS = ['american', 'international', 'russian', 'brazilian', 'casual'];
+  // MAIN_IDS show as tiles on the Play screen; the rest sit behind "More rules"
+  const MAIN_IDS = ['american', 'international', 'russian', 'brazilian', 'casual'];
+  const MORE_IDS = ['pool', 'italian', 'spanish', 'flykings'];
+  const VARIANT_IDS = MAIN_IDS.concat(MORE_IDS);
   const V = id => VARIANTS[id] || VARIANTS.american;
 
   // ------------------------------------------------------------------ geometry
@@ -172,6 +202,7 @@
         } else {
           const o = nb[cur * 4 + d];
           if (o < 0 || !isOpp(board[o]) || capt[o]) continue;
+          if (!king && v.noManTakesKing && (board[o] === 2 || board[o] === -2)) continue; // Italian: a man may not take a king
           const l = nb[o * 4 + d];
           if (l < 0 || board[l] !== 0) continue;
           any = true;
@@ -201,6 +232,7 @@
       for (const m of res) if (m.caps.length > max) max = m.caps.length;
       res = res.filter(m => m.caps.length === max);
     }
+    if (v.prio && res.length > 1) res = prioFilter(v, board, res);
     // flying kings can take the same pieces by different routes to the same square: that is one move (FMJD)
     if (v.flying && res.length > 1) {
       const seen = new Set();
@@ -210,6 +242,19 @@
         seen.add(k); return true;
       });
     }
+    return res;
+  }
+
+  // Tie-breaks after "take the most pieces" (docs/rules-check.md):
+  //   italian: capture with a king rather than a man, then take the most kings, then meet a king earliest
+  //   kings (Spanish): take the most kings
+  function prioFilter(v, board, ms) {
+    const isK = s => board[s] === 2 || board[s] === -2;
+    const keepMax = (list, f) => { let best = -1e9; for (const m of list) best = Math.max(best, f(m)); return list.filter(m => f(m) === best); };
+    let res = ms;
+    if (v.prio === 'italian') res = keepMax(res, m => (board[m.path[0]] === 2 || board[m.path[0]] === -2 ? 1 : 0));
+    res = keepMax(res, m => m.caps.filter(isK).length);
+    if (v.prio === 'italian') res = keepMax(res, m => { const i = m.caps.findIndex(isK); return i < 0 ? 0 : -i; });
     return res;
   }
 
@@ -256,6 +301,13 @@
       } else if (v.endgame === 'cbjd') {   // CBJD art. 99 / 100
         if (a.kings >= 1 && tot <= 2) offer('5', 10, false);
         if (a.kings >= 1 && tot === 3 && onMain) offer('main', 10, false);
+      } else if (v.endgame === 'pool') {    // APCA: three kings vs one king must win within 13 moves
+        if (a.kings === 3 && a.men === 0) offer('p13', 26, false);
+      } else if (v.endgame === 'spanish') { // 3+ kings, one on the long diagonal, vs a lone king: 13 moves
+        const own = s === 0 ? 2 : -2;
+        let strongMain = false;
+        for (let q = 0; q < g.S; q++) if (board[q] === own && g.rc[q][0] + g.rc[q][1] === v.n - 1) strongMain = true;
+        if (a.kings >= 3 && strongMain) offer('s13', 26, false);
       } else if (v.endgame === 'russian') { // Russian rules 2.1.9.1 .3 .4 .7
         if (tot === 3 && onMain) offer('r7', 10, true);
         if (a.kings >= 3 && (onMain || tot >= 4)) offer('r15', 30, true);
@@ -376,7 +428,7 @@
 
   // ------------------------------------------------------------------ notation
   function sqName(variant, s) {
-    const v = V(variant), g = geo(v.n), r = g.rc[s][0], c = g.rc[s][1];
+    const v = V(variant), g = geo(v.n), r = g.rc[s][0], c = v.mirror ? v.n - 1 - g.rc[s][1] : g.rc[s][1];
     if (v.notation === 'alg') return 'abcdefghij'[c] + (v.n - r);
     if (v.n === 8) { // American: Black (first mover) on 1-12, square 1 in Black's far-right double corner
       const rr = v.n - 1 - r, cc = v.n - 1 - c;
@@ -407,7 +459,7 @@
   };
 
   return {
-    VARIANTS, VARIANT_IDS, V, geo, startBoard, genMoves, genCaptures, genQuiet, doMove, material,
+    VARIANTS, VARIANT_IDS, MAIN_IDS, MORE_IDS, V, geo, startBoard, genMoves, genCaptures, genQuiet, doMove, material,
     endgameLimit, posKey, newGame, legal, findMove, act, settle, clone, drawCountdown, sqName, moveText,
     replay, capsOf, REASONS, samePath,
   };
