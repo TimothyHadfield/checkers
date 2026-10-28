@@ -1,7 +1,7 @@
 # Checkers Lab — progress
 
 ## START HERE
-Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-27 (home-screen app + offline).
+Read this file, then `CLAUDE.md`, then `docs/rules-check.md`. Last updated: 2026-10-27 (improvement pass: My stats, coach, Daily, ballot, share links, stronger Hard).
 Live: https://timothyhadfield.github.io/checkers/ · Repo: https://github.com/TimothyHadfield/checkers
 
 ## Goal right now
@@ -20,19 +20,20 @@ learn from a coach, review, puzzles and a position editor. Waiting for Tim's loo
 | Analyze: set up a real-board position, best move + score, play from here | Done |
 | Puzzles: 158 from self-play, all five rule sets | Done |
 | Online rooms via `../_online/online.js` (copied unchanged) | Done; any mix of you / computer / friend |
-| Tests: 38 node tests; 10 deliberate breakages each caught | Done |
-| Home-screen app + offline vs computer (shared `_pwa` kit 1.1.0, 2026-10-27) | Done; `tools/pwa-check.mjs` 3/17 before → 18/18 |
+| Tests: 48 node tests (`node --test "tests/*.test.*"`) | Done |
+| Home-screen app + offline vs computer (shared `_pwa` kit 1.2.0, byte-identical) | Done; `tools/pwa-check.mjs` 18/18 |
+| Improvement pass (2026-10-27): My stats (`_profile` 1.1.0: local Elo, awards, streak, Daily), `_coach` (guided first game, full rules sheet for all 5 rule sets), Daily game, 3-move ballot switch, share a finished game as a link | Done; WebKit flow script 25/25 (scratchpad `improve/checkers/flows.mjs`) |
 
-### Measured strength (American, 24 games per match, random 4-move openings, colours swapped, draw = ½)
+### Measured strength (American, 48 games per match, random 4-move openings, colours swapped, draw = ½; 2026-10-27)
 | Match | W-D-L (higher level first) | Score |
 |---|---|---|
-| Easy vs Beginner | 19-4-1 | 88% |
-| Medium vs Easy | 17-4-3 | 79% |
-| Hard vs Medium | 8-11-5 | 56% |
-| Expert vs Hard | 9-13-2 | 65% |
-| Expert vs Medium | 9-11-4 | 60% |
-| Expert vs Beginner | 24-0-0 | 100% |
-Budgets: Beginner depth 2 + noise 140, Easy depth 4 + noise 45, Medium 2,500 nodes, Hard 100,000, Expert 450,000.
+| Easy vs Beginner | 39-8-1 | 90% |
+| Medium vs Easy | 25-19-4 | 72% |
+| Hard vs Medium | 30-13-5 | 76% (was 56%) |
+| Expert vs Hard | 16-22-10 | 56% |
+| Expert vs Medium | 35-11-2 | 84% |
+| Expert vs Beginner | 48-0-0 | 100% |
+Budgets: Beginner depth 2 + noise 140, Easy depth 4 + noise 45, Medium 2,500 nodes + noise 15 (all game), Hard 100,000, Expert 450,000. Hard/Expert pick at random among moves within 0.10 men of the best for their first 8 plies (`optsFor` in levels.js), so no two games open the same. Level Elo shown in the app (Beginner anchored at 800): 800 / 1175 / 1325 / 1550 / 1575.
 Checkers is very drawish at the top (it is solved as a draw), so strong levels draw each other a lot.
 
 ## Standing instructions (Tim's words)
@@ -53,6 +54,10 @@ Checkers is very drawish at the top (it is solved as a draw), so strong levels d
 - Pieces have `pointer-events: none`; tests click `.sq[data-s=N]` (square index), not the piece.
 - History: sheets and the online screen push a `{layer}` entry so phone Back closes them first; closing them by button drops that entry with `popQuiet()`. Changing tab from a layer uses replaceState. Keep this when adding new overlays.
 - **Home-screen app / offline (2026-10-27):** `sw.js`, `js/pwa.js`, `tools/pwa-check.mjs`, `tools/make-icons.mjs` are verbatim copies of `Board and Card Games/_pwa` (repo game-pwa); never edit here. `pwa.js` is a plain (not defer) script right before app.js, so `window.PWA` exists when app.js runs; bump its `data-version` with app.js's `?v=`. `PWA.safeToReload` (end of app.js): true only with no online room, no sheet/confirm layer, nothing thinking/animating/dragging, no focused field, and Settings open or Play with no game in progress. `window.CkApp = {cur, onSquare, ui}` exists for `tests/pwa-check.json`. Test: `node tools/pwa-check.mjs` (~1 min; `--engine chromium`).
+
+- **Improvement pass files (2026-10-27):** `js/profile.js`+`css/profile.css` (`_profile` 1.1.0) and `js/coach.js`+`css/coach.css` (`_coach`) are verbatim kit copies (`-text` in `.gitattributes`, the kits store CRLF; copy with `git show HEAD:file` from the kit repo and compare blob hashes). Game glue: `js/profile-ck.js` (ratings from MEASURED, awards, Daily setup, what counts), `js/coach-ck.js` (rules sheet + guided steps), `js/share.js` (link format `variant~start~turn~move indexes base36~result`), `js/openings.js` (264 ballot lines made by `tools/make-openings.js`, ~25 min; drops any start worse than ±0.55 men). The `_coach` rules tabs wrap via a game-side override in index.html (kit scrolls them sideways).
+- **What counts in My stats:** Hint or Undo used → "with help", not rated; guided games never count; no Undo in the Daily; quitting/New game vs the computer after your first own move (ballot moves don't count) = a loss; Analyze "play from here" games are "with help"; two-player games count with no winner; `g.counted` stops double counting.
+- Medium's strength now comes from noise 15 as well as its node budget; re-measure (`node tools/measure-levels.js 48 american 4`, ~45 min) after any engine or level change, then paste the JSON into `MEASURED` (a test checks every step ≥65%).
 
 ## Decisions
 - Draw rules are applied automatically (no referee to claim them).
@@ -127,5 +132,7 @@ Play tab was already fine (phone width-limited 343 px; laptop 602/702 px). `layo
 - Strength numbers for the other rule sets (only American measured).
 - Home-screen app (2026-10-27): never added to a real iPhone home screen; offline + new-build pickup checked only headless (WebKit/Chromium) against a Pages-like local server and the live worker. The "New version — tap to reload" pill is the kit's plain look; Tim hasn't seen it.
 
+- Improvement pass: guided game, Daily, ballot, share link and My stats checked only headless (WebKit 393×659, 659×393, 320×568, 1440×900). On short phones (under 620 px tall) the title row with My stats / Daily is hidden; both stay reachable from Settings. Shared links never opened from a real message app. Expert vs Hard is only 56% (Expert ahead, but not by 65%).
+
 ## Rejected / parked
-- ~~Opening book, endgame databases, Elo, clocks~~ — see `docs/ideas.md` for reasons.
+- ~~Endgame databases~~ — see `docs/ideas.md`. Elo (now a local rating in My stats) and the 3-move ballot were built in the 2026-10-27 pass at the manager's brief. ~~Clocks~~ — only wanted for online rooms, and `js/online.js` is not ours to change.

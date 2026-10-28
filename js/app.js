@@ -3,9 +3,11 @@
 (function () {
   'use strict';
   const R = window.CkRules, L = window.CkLevels, E = window.CkEngine, OG = window.CkOnlineGame;
+  const O = window.CkOpenings, PK = window.CkProfile, P = window.Profile, CC = window.CkCoach, COACH = window.COACH;
+  let tour = null; // the guided first game (js/coach-ck.js + shared js/coach.js)
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const BUILD = '2026-10-20.4';
+  const BUILD = '2026-10-27.11';
 
   // ================================================================== sounds + effects (js/fx.js, all switchable in Settings)
   const FX = window.FX, SFX = window.CkSfx;
@@ -25,7 +27,7 @@
 
   // ================================================================== storage
   const KEY = 'checkers:v1';
-  const DEF = { variant: 'american', mode: 'computer', level: 3, side: 'first', coach: true, dots: true, numbers: false, turnBoard: false, name: '' };
+  const DEF = { variant: 'american', mode: 'computer', level: 3, side: 'first', coach: true, dots: true, numbers: false, turnBoard: false, ballot: false, name: '' };
   function load() {
     let s = null;
     try { s = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { s = null; }
@@ -35,7 +37,7 @@
     if (st.mode !== 'two') st.mode = 'computer';
     if (!L.LEVELS.some(l => l.id === st.level)) st.level = 3;
     if (!['first', 'second', 'random'].includes(st.side)) st.side = 'first';
-    ['coach', 'dots', 'numbers', 'turnBoard'].forEach(k => { st[k] = !!st[k]; });
+    ['coach', 'dots', 'numbers', 'turnBoard', 'ballot'].forEach(k => { st[k] = !!st[k]; });
     st.name = typeof st.name === 'string' ? st.name.slice(0, 20) : '';
     const out = { settings: st, game: null, last: null, pz: { solved: {}, idx: {}, tried: {} }, an: null, online: !!s.online };
     if (validGame(s.game)) out.game = s.game;
@@ -333,6 +335,12 @@
   window.addEventListener('popstate', e => {
     const s = e.state || {};
     if (quietPops > 0) { quietPops--; const f = afterPops.shift(); if (f) f(); return; }
+    // the rules sheet or My stats open: Back closes it and stays where it was
+    if ((COACH && COACH.rulesOpen()) || (P && P.isOpen())) {
+      if (COACH && COACH.rulesOpen()) COACH.closeRules(); else P.closePanel();
+      try { history.pushState({ tab: ui.tab }, '', '#' + ui.tab); } catch (er) { /* file:// */ }
+      return;
+    }
     // back onto a layer (a box opened over the online screen): close the box; forward onto a closed layer: nothing to reopen
     if (s.layer) { document.querySelectorAll('.confirm-back').forEach(b => b.remove()); return; }
     const boxes = document.querySelectorAll('.confirm-back');
@@ -392,7 +400,7 @@
     if (!g) return null;
     const lv = L.byId(g.level);
     const names = g.mode === 'two' ? [sideName(g.st.variant, 0), sideName(g.st.variant, 1)] : [0, 1].map(s => (s === g.my ? 'You' : lv.name + ' computer'));
-    return { st: g.st, mode: g.mode, my: g.my, names, away: [false, false], anal: g.anal || (g.anal = {}), level: g.level };
+    return { st: g.st, mode: g.mode, my: g.my, names, away: [false, false], anal: g.anal || (g.anal = {}), level: g.level, book: g.book || 0, daily: g.daily || null, guided: !!g.guided };
   }
   function bottomSide(c) {
     if (c.mode === 'two' && store.settings.turnBoard) return c.st.offer >= 0 ? 1 - c.st.offer : c.st.turn;
@@ -415,6 +423,7 @@
     if (c) renderGame(c);
     else if (ui.online) renderOnline();
     else renderSetup();
+    if (tour && COACH) COACH.update();
   }
 
   // ---------------------------------------------------------------- setup
@@ -435,28 +444,45 @@
     const sides = [['first', v.sides[0], 'moves first'], ['second', v.sides[1], ''], ['random', 'Random', '']];
     const two = s.mode === 'two';
     vPlay.innerHTML = '<div class="setup two">' +
-      '<div class="hero"><img src="icon.svg" alt=""><div><h1>Checkers Lab</h1><p>Every common rule set, a measured computer and a coach.</p></div></div>' +
+      '<div class="hero"><img src="icon.svg" alt=""><div class="grow" style="min-width:0"><h1>Checkers Lab</h1><p>Every common rule set, a measured computer and a coach.</p></div>' +
+      '<button class="btn small pf-open" data-me>' + (P ? P.avatarSVG(P.avatar, 24) : '') + '<span>My stats</span></button><button class="btn small" data-daily>' + esc(dailyWord()) + '</button></div>' +
       '<div class="panel"><div class="row"><span class="label grow">Rules</span>' + qBtn('American checkers is the US and UK game. International (10×10), Russian and Brazilian are the draughts played in most of the world. Casual is the kitchen-table version where jumping is optional. The full rules of each are in Settings.') + '</div>' +
-      '<div class="vgrid">' + R.VARIANT_IDS.map(vbtn).join('') + '</div><p class="vblurb">' + esc(v.blurb) + '</p></div>' +
+      '<div class="vgrid">' + R.VARIANT_IDS.map(vbtn).join('') + '</div><p class="vblurb">' + esc(v.blurb) + (ballotOn(s.variant) ? ' 3-move ballot on.' : '') + '</p></div>' +
       '<div class="panel">' +
       '<div class="label">Opponent</div><div class="seg" data-set="mode"><button data-v="computer" aria-pressed="' + !two + '">Computer</button><button data-v="two" aria-pressed="' + two + '">Two players<small>same device</small></button></div>' +
       (two ? '' :
-        '<div class="row"><span class="label grow">Level</span>' + qBtn(levelNote()) + '</div>' +
+        '<div class="row"><span class="label grow">Level' + eloNote() + '</span>' + qBtn(levelNote()) + '</div>' +
         '<div class="seg tight" data-set="level">' + L.LEVELS.map(l => '<button data-v="' + l.id + '" aria-pressed="' + (s.level === l.id) + '">' + esc(l.name) + '</button>').join('') + '</div>' +
         '<div class="label">You play</div><div class="seg tight" data-set="side">' + sides.map(x => '<button data-v="' + x[0] + '" aria-pressed="' + (s.side === x[0]) + '">' + esc(x[1]) + (x[2] ? '<small>' + x[2] + '</small>' : '') + '</button>').join('') + '</div>') +
       '<button class="btn primary" data-start style="width:100%">Start</button>' +
       '<button class="btn" data-on="open" style="width:100%">Play online</button>' +
       '</div></div>';
   }
+  // the 3-move ballot (Settings): American and Casual games start from a random opening of js/openings.js
+  const ballotOn = variant => store.settings.ballot && (variant === 'american' || variant === 'casual');
+  function withOpening(st, line) {
+    for (const p of line) st = R.act(st, st.turn, { path: p });
+    return st;
+  }
   function startGame(opts) {
     const s = store.settings;
     opts = opts || {};
+    abandonGame(); // a game vs the computer left after your first move counts as a loss
     const variant = opts.variant || s.variant;
+    const mode = opts.mode || s.mode;
     let my = 0;
-    if (s.mode === 'computer') my = s.side === 'second' ? 1 : s.side === 'random' ? (Math.random() < 0.5 ? 0 : 1) : 0;
+    if (mode === 'computer') my = s.side === 'second' ? 1 : s.side === 'random' ? (Math.random() < 0.5 ? 0 : 1) : 0;
     if (opts.my != null) my = opts.my;
-    const st = opts.st || R.newGame(variant);
-    store.game = { st, mode: opts.mode || s.mode, level: s.level, my, anal: {}, started: Date.now() };
+    let st = opts.st || R.newGame(variant), book = 0;
+    const line = opts.opening || (!opts.st && ballotOn(variant) && O && O.BALLOT.length ? O.BALLOT[Math.floor(Math.random() * O.BALLOT.length)] : null);
+    if (line) { st = withOpening(st, line); book = line.length; }
+    store.game = { st, mode, level: opts.level || s.level, my, anal: {}, started: Date.now() };
+    if (book) store.game.book = book;
+    if (opts.daily) store.game.daily = opts.daily;
+    if (opts.guided) store.game.guided = true;
+    if (opts.helped) store.game.helped = true;
+    if (!opts.guided && tour) tour.stop();
+    if (COACH) COACH.closeOffer(); // the "New to checkers?" card never sits over a game
     ui.gen++; ui.sel = null; ui.roots = {}; ui.shown = null; ui.hint = null; ui.thinking = false;
     save();
     showTab('play', ui.tab !== 'play');
@@ -474,6 +500,8 @@
       save(); renderPlay(); return;
     }
     if (t.closest('[data-start]')) { startGame(); return; }
+    if (t.closest('[data-me]')) { if (P) P.openPanel(); return; }
+    if (t.closest('[data-daily]')) { startDaily(); return; }
     const on = t.closest('[data-on]');
     if (on) { onlineBtn(on.dataset.on); return; }
     const sb = t.closest('[data-seat]');
@@ -553,7 +581,7 @@
     const land = isLand();
     const size = wide ? fitBoard(vPlay, 72 + 12, 340 + 18 + 26) : land ? landBoard(vPlay, 290) :fitBoard(vPlay, 36 * 2 + 8 + 36 + 44 + 6 * 5 + (st.offer >= 0 ? 0 : 0), 0);
     const boardInner = boardFor(c, flip);
-    const end = st.result ? '<div class="endcard"><div class="panel"><h2>' + esc(resultText(c).split(' · ')[0]) + '</h2><span class="muted">' + esc(R.REASONS[st.result.reason] || '') + '</span>' +
+    const end = st.result ? '<div class="endcard"><div class="panel"><h2>' + esc(resultText(c).split(' · ')[0]) + '</h2><span class="muted">' + esc(R.REASONS[st.result.reason] || '') + '</span>' + endNote(c) +
       '<div class="row"><button class="btn" data-act="review">Review</button><button class="btn primary" data-act="new">New game</button></div></div></div>' : '';
     const offerMine = st.offer >= 0 && !st.result && (c.mode === 'two' || (c.mode === 'online' && net.snap.myTurn));
     const offer = offerMine ? '<div class="offerbar"><span class="grow">' + esc(sideName(st.variant, st.offer)) + ' offers a draw</span><button class="btn small" data-act="decline">Decline</button><button class="btn small primary" data-act="accept">Accept</button></div>' : '';
@@ -589,6 +617,7 @@
       const was = ui.ended[k];
       ui.ended[k] = over;
       if (over && was === false) {
+        if (c.mode === 'online') recordOnline(c);
         const r = st.result, win = r.winner != null ? sideName(st.variant, r.winner) : null;
         later(() => SFX.celebrateEnd(FX, r, c.mode, c.my, win, vPlay.querySelector('.endcard .panel')), Math.max(0, soundsUntil - Date.now()));
       }
@@ -629,12 +658,12 @@
   }
   const startsWith = (p, pre) => pre.every((x, i) => p[i] === x);
   function canUndo(c) {
-    if (c.mode === 'online' || !c.st.moves.length) return false;
+    if (c.mode === 'online' || !c.st.moves.length || c.daily) return false;
     // a resignation or an agreed draw is final (it is not a move that can be taken back)
     if (c.st.result && (c.st.result.reason === 'resign' || c.st.result.reason === 'agreed')) return false;
-    if (c.mode === 'two') return true;
+    if (c.mode === 'two') return c.st.moves.length > (c.book || 0);
     // vs computer: there must be one of my moves to take back
-    for (let i = c.st.moves.length - 1; i >= 0; i--) if (sideAt(c.st, i) === c.my) return true;
+    for (let i = c.st.moves.length - 1; i >= (c.book || 0); i--) if (sideAt(c.st, i) === c.my) return true;
     return false;
   }
   const sideAt = (st, ply) => (st.start.turn + ply) % 2;
@@ -749,6 +778,7 @@
   }
   function finishGame() {
     const g = store.game;
+    recordGame(g);
     store.last = JSON.parse(JSON.stringify(g));
     ui.rv = { ply: 0, key: '' };
   }
@@ -764,10 +794,9 @@
     if (st.turn === g.my || ui.thinking || document.hidden) return;
     ui.thinking = true;
     const myGen = ui.gen;
-    const lv = L.byId(g.level);
     const t0 = Date.now();
     renderPlay();
-    ai.run(st, Object.assign({ seed: (Date.now() & 0xffff) }, lv.opts)).then(r => {
+    ai.run(st, L.optsFor(g.level, st)).then(r => {
       if (myGen !== ui.gen || !store.game || store.game.st !== st) return;
       const wait = Math.max(0, 450 - (Date.now() - t0));
       setTimeout(() => {
@@ -845,11 +874,13 @@
     const c = cur();
     if (k === 'new') {
       if (c && c.mode === 'online') { leaveOnline(); return; }
+      abandonGame();
       store.game = null; ui.gen++; ui.thinking = false; save(); renderPlay(); return;
     }
     if (k === 'review') { showTab('review', true); return; }
     if (!c) return;
     if (k === 'hint') {
+      markHelped('Hint');
       const a = c.anal[c.st.ply];
       if (a && a.b) { ui.hint = { ply: c.st.ply, path: a.b }; renderPlay(); }
       else {
@@ -875,6 +906,7 @@
     if (!over && (c.mode !== 'online' || myTurn)) items.push(['resign', c.mode === 'two' ? sideName(st.variant, st.turn) + ' resigns' : 'Resign']);
     items.push(['new', c.mode === 'online' ? 'Leave the room' : 'New game']);
     items.push(['rules', 'Rules: ' + V(st.variant).long]);
+    if (P) items.push(['me', 'My stats']);
     if (c.mode === 'online' && net.snap) items.push(['code', 'Room code ' + net.snap.code]);
     sheet('Game', '<div class="menu-list">' + items.map(x => '<button class="btn" data-m="' + x[0] + '">' + esc(x[1]) + '</button>').join('') + '</div>', e => {
       const b = e.target.closest('[data-m]');
@@ -894,8 +926,8 @@
       } else if (k === 'new') {
         if (c.mode === 'online') confirmBox('Leave this room? A computer takes your seat.', 'Leave', leaveOnline);
         else if (over || !st.moves.length) gameAction('new');
-        else confirmBox('Quit this game and start again?', 'Quit', () => gameAction('new'));
-      } else if (k === 'rules') { rulesSheet(st.variant); }
+        else confirmBox(quitPending() ? 'Quit this game and start again? It counts as a loss.' : 'Quit this game and start again?', 'Quit', () => gameAction('new'));
+      } else if (k === 'rules') { rulesSheet(st.variant); } else if (k === 'me' && P) { P.openPanel(); }
     });
   }
   function undo() {
@@ -903,7 +935,8 @@
     if (!g || !canUndo(g)) return;
     let n = g.st.moves.length - 1;
     if (g.mode === 'computer') { while (n >= 0 && sideAt(g.st, n) !== g.my) n--; }
-    if (n < 0) return;
+    if (n < (g.book || 0)) return;
+    markHelped('Undo');
     ui.gen++; ui.thinking = false; ui.sel = null; ui.hint = null;
     g.st = R.replay(g.st, n);
     for (const k of Object.keys(g.anal)) if (+k >= n) { if (+k === n) delete g.anal[k].g; else delete g.anal[k]; }
@@ -1070,12 +1103,15 @@
       'If you start a jump, you finish the whole chain.', 'Everything else (kings, crowning, draws) is the same as American.'],
   };
   function rulesSheet(variant) {
+    if (COACH && CC) { closeSheet(); const r = CC.rules(); if (variant) r.open = variant === 'american' ? 'american' : variant; COACH.rules(r); return; }
+    if (!variant) variant = 'american';
     sheet(V(variant).long, '<ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:14px">' + RULES_TEXT[variant].map(t => '<li>' + esc(t) + '</li>').join('') + '</ul>');
   }
 
   // ================================================================== REVIEW
   const vReview = $('#v-review');
   function reviewGame() {
+    if (ui.shared) return { g: ui.shared, live: false };
     const c = cur();
     if (c && c.mode !== 'online' && store.game && store.game.st.moves.length && !store.game.st.result) return { g: store.game, live: true };
     if (store.last) return { g: store.last, live: false };
@@ -1125,7 +1161,8 @@
         (a && a.b && !R.samePath(a.b, played) && a.g && a.g.label !== 'Best' ? '<br><span class="muted">Best was</span> <b style="color:var(--good)">' + esc(R.moveText(st.variant, a.b, R.capsOf(pos, a.b))) + '</b>' : '');
     } else info = st.result ? '<b>' + esc(st.result.winner == null ? 'Draw' : who(st.result.winner) + (who(st.result.winner) === 'You' ? ' win' : ' wins')) + '</b> · ' + esc(R.REASONS[st.result.reason] || '') : 'Game in progress';
     const head = '<div class="acc">' + [0, 1].map(side => '<span>' + disc(st.variant, side).replace('class="disc"', 'style="width:16px;height:16px;vertical-align:-3px"') + ' ' + esc(who(side)) + ' <span class="big" style="color:' + (acc[side] == null ? 'var(--muted)' : 'hsl(' + Math.round(Math.max(0, acc[side] - 50) / 50 * 130) + ',70%,62%)') + '">' + (acc[side] == null ? '–' : acc[side] + '%') + '</span></span>').join('') +
-      qBtn('Accuracy: 100% means every move was the coach’s best. Each move loses points for how much worse it was than the best move (1 point = one man); forced moves don’t count.') + '</div>';
+      qBtn('Accuracy: 100% means every move was the coach’s best. Each move loses points for how much worse it was than the best move (1 point = one man); forced moves don’t count.') +
+      (ui.shared ? '<button class="btn small" data-rv="unshare">Close</button>' : (n || st.result) && !R0.live ? '<button class="btn small" data-rv="share">Share</button>' : '') + '</div>';
     const graph = '<div class="chart" id="rv-chart">' + graphSVG(st, anal, me, ply) + '</div>';
     const nav = '<div class="navrow"><button class="btn" data-rv="first" aria-label="Start">«</button><button class="btn" data-rv="prev" aria-label="Back">‹</button><button class="btn" data-rv="next" aria-label="Forward">›</button><button class="btn" data-rv="last" aria-label="End">»</button></div>';
     const status = missing.length || graded.length ? (ui.rvBusy ? '<div class="muted small">Analyzing… ' + ui.rvBusy + '</div>' : '<button class="btn" data-rv="analyze">Analyze ' + (missing.length || graded.length) + ' positions</button>') : '';
@@ -1174,6 +1211,8 @@
       else if (k === 'next') ui.rv.ply = Math.min(n, ui.rv.ply + 1);
       else if (k === 'last') ui.rv.ply = n;
       else if (k === 'analyze') { analyzeGame(R0.g); return; }
+      else if (k === 'share') { shareGame(R0.g); return; }
+      else if (k === 'unshare') { ui.shared = null; ui.rv = { ply: 0, key: '' }; }
       renderReview(); return;
     }
     const td = e.target.closest('td[data-ply]');
@@ -1302,7 +1341,7 @@
         const go = () => {
           const pos = R.newGame(st.variant, { board: st.board, turn: st.turn });
           store.settings.variant = st.variant;
-          startGame({ variant: st.variant, st: pos, my: an.flip ? 1 : 0, mode: 'computer' });
+          startGame({ variant: st.variant, st: pos, my: an.flip ? 1 : 0, mode: 'computer', helped: true }); // a set-up position is never rated
         };
         if (cur0 && cur0.mode !== 'online' && cur0.st.moves.length && !cur0.st.result) confirmBox('Quit your current game and play from this position?', 'Play', go);
         else if (cur0 && cur0.mode === 'online') toast('Leave the online room first');
@@ -1484,7 +1523,10 @@
     ];
     vSet.innerHTML = '<div class="set scroll">' +
       '<div class="panel">' + sw('coach', 'Coach', 'Score bar, move grades and the Hint button') + sw('dots', 'Show moves', 'Dots where the selected piece can go') +
-      sw('numbers', 'Square names', 'Numbers or letters on the board, as in books') + sw('turnBoard', 'Turn the board', 'Two players: the side to move is at the bottom') + '</div>' +
+      sw('numbers', 'Square names', 'Numbers or letters on the board, as in books') + sw('turnBoard', 'Turn the board', 'Two players: the side to move is at the bottom') +
+      sw('ballot', '3-move ballot', 'American and Casual: the first three moves are drawn at random, as in tournaments') + '</div>' +
+      '<div class="panel"><div class="setrow"><div class="grow"><b>Learn to play</b><span>The full rules, or a guided first game against Beginner.</span></div></div>' +
+      '<div class="row"><button class="btn" data-fullrules style="flex:1">Full rules</button><button class="btn" data-guided style="flex:1">Guided game</button><button class="btn pf-open" data-me style="flex:1">' + (P ? P.avatarSVG(P.avatar, 22) : '') + '<span>My stats</span></button></div></div>' +
       '<div class="panel" id="fx-box"><span class="label">Sound &amp; effects</span></div>' +
       '<div class="panel"><div class="row"><span class="label grow">How strong is the computer?</span>' + qBtn('Each level searches a fixed number of positions, so it plays the same on any device. Weaker levels also add random mistakes. The table is real games between the levels.') + '</div>' + strength + '</div>' +
       '<div class="panel"><div class="row"><span class="label grow">Rules compared</span>' + qBtn('Checkers was solved in 2007 (Schaeffer et al., Science): with perfect play, American checkers is a draw. Every rule set here follows the official rules; tap a name for the details.') + '</div>' +
@@ -1503,15 +1545,135 @@
   vSet.addEventListener('click', e => {
     const r = e.target.closest('[data-rules]');
     if (r) { rulesSheet(r.dataset.rules); return; }
+    if (e.target.closest('[data-fullrules]')) { rulesSheet(); return; }
+    if (e.target.closest('[data-guided]')) { startGuided(); return; }
+    if (e.target.closest('[data-me]')) { if (P) P.openPanel(); return; }
     if (e.target.closest('[data-online]')) { if (!store.game) ui.online = true; showTab('play', true); if (store.game) toast('Finish or quit the current game first'); }
   });
   document.addEventListener('click', e => { const go = e.target.closest('[data-go]'); if (go && !e.target.closest('#v-review')) showTab(go.dataset.go, true); });
 
+  // ================================================================== My stats (shared js/profile.js + js/profile-ck.js)
+  // Games vs the computer are rated unless Hint or Undo was used ("with help"); the guided game never counts;
+  // leaving a game vs the computer after your first move counts as a loss.
+  const LEVEL_RATINGS = PK ? PK.levelRatings(L) : [];
+  if (P && PK) {
+    P.init({
+      game: 'checkers', levels: LEVEL_RATINGS.map(l => ({ id: l.id, name: l.name, rating: l.rating })), achievements: PK.ACHIEVEMENTS,
+      modes: { help: { name: 'Computer, with help' }, two: { name: '2 players' }, online: { name: 'Online' } },
+      daily: { title: 'Daily game', onPlay: () => { P.closePanel(); startDaily(); } },
+      draws: true, name: store.settings.name || undefined,
+      onChange: what => { if ((what === 'result' || what === 'me' || what === 'import' || what === 'reset') && !store.game && ui.tab === 'play' && !ui.online) renderPlay(); },
+    });
+  }
+  function eloNote() {
+    try { const e = P && P.stats().elo; return e && e.games > 0 ? ' <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:600">· your Elo ' + e.rating + '</span>' : ''; } catch (e) { return ''; }
+  }
+  function dailyWord() {
+    try { if (!P) return 'Daily'; const r = P.daily.result(); return r ? (r.r === 'w' ? 'Daily ✓ won' : r.r === 'd' ? 'Daily ✓ drawn' : 'Daily ✓ lost') : 'Daily game'; } catch (e) { return 'Daily game'; }
+  }
+  function recordGame(g) {
+    if (!P || !PK || !g || g.counted || !g.st.result) return;
+    g.counted = true;
+    const res = PK.profileResult(g);
+    if (!res) return;
+    if (g.daily) res.date = g.daily;
+    const out = P.recordResult(res);
+    if (out && out.elo) g.elo = out.elo;
+  }
+  function recordOnline(c) {
+    if (!P || !PK || !net.snap || net.snap.mySeat < 0) return;
+    const res = PK.profileResult({ st: c.st, mode: 'online', my: c.my });
+    if (res) P.recordResult(res);
+  }
+  // the loss that leaving the game on the table now would record (null: leaving is free)
+  function quitPending() {
+    const g = store.game;
+    if (!PK || !g || g.counted) return null;
+    return PK.quitResult(g);
+  }
+  function abandonGame() {
+    const res = quitPending();
+    if (!res || !P) return;
+    store.game.counted = true;
+    if (store.game.daily) res.date = store.game.daily;
+    P.recordResult(res);
+    toast(store.game.daily ? 'Daily game left: counted as a loss' : 'Game left: counted as a loss');
+  }
+  function markHelped(what) {
+    const g = store.game;
+    if (!g || g.mode !== 'computer' || g.helped || g.guided || g.st.result) return;
+    g.helped = true; save();
+    toast(what + ' used: this game won’t change your Elo');
+  }
+  function endNote(c) {
+    const g = store.game;
+    if (c.mode === 'online' || !g) return '';
+    let t = '';
+    if (g.guided) t = 'Guided game: not counted';
+    else if (g.elo) t = 'Elo ' + g.elo.before + ' → ' + g.elo.after + ' (' + (g.elo.change >= 0 ? '+' : '') + g.elo.change + ')';
+    else if (g.helped && g.mode === 'computer') t = 'With help: Elo unchanged';
+    return t ? '<span class="muted small">' + esc(t) + (g.daily ? ' · Daily game' : '') + '</span>' : '';
+  }
+  /** Today's Daily game: today's 3-move ballot opening against Hard, American rules, the colour drawn for the day. */
+  function startDaily() {
+    if (!P || !PK) return;
+    const g = store.game;
+    if (g && g.daily && !g.st.result) { showTab('play', ui.tab !== 'play'); toast('Your Daily game is on the table'); return; }
+    if (P.daily.played()) { P.openPanel({ tab: 'daily' }); return; }
+    if (ui.online || net.room) { toast('Leave the online room first'); return; }
+    const day = P.daily.date();
+    const d = PK.dailySetup(P.daily.rng(day));
+    startGame({ variant: 'american', mode: 'computer', level: 4, my: d.my, opening: d.opening, daily: day });
+    toast('Daily game: today’s opening vs Hard');
+  }
+
+  // ================================================================== rules sheet + guided first game (shared js/coach.js)
+  function startGuided() {
+    if (!tour) return;
+    if (ui.online || net.room) { toast('Leave the online room first'); return; }
+    tour.reset();
+    startGame({ variant: 'american', mode: 'computer', level: 1, my: 0, opening: [], guided: true });
+    tour.start();
+  }
+  if (COACH && CC) {
+    tour = COACH.tour({
+      id: 'ck-first',
+      steps: CC.steps({ st: () => (store.game && store.game.guided ? store.game.st : null), my: 0, busy: () => ui.thinking || ui.anim }),
+      pauseIf: () => ui.tab !== 'play' || !(store.game && store.game.guided) || !!$('#sheet') || !!document.querySelector('.confirm-back') || !!(P && P.isOpen()) || COACH.rulesOpen(),
+    });
+  }
+
+  // ================================================================== share a game as a link (moves in the URL, no server)
+  // the link format is in js/share.js
+  const SH = window.CkShare;
+  const gameLink = st => location.origin + location.pathname + '#g=' + SH.encode(st);
+  function gameFromLink(h) {
+    const st = SH.decode(h);
+    return st ? { st, mode: 'two', level: 3, my: 0, anal: {}, started: 'shared' } : null;
+  }
+  function shareGame(g) {
+    const url = gameLink(g.st);
+    const title = 'Checkers game · ' + V(g.st.variant).long;
+    if (navigator.share) { navigator.share({ title, url }).catch(() => {}); return; }
+    const done = () => toast('Link copied: it opens this game in Review');
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => sheet('Share this game', '<input class="txt" readonly style="width:100%" value="' + esc(url) + '">'));
+    else sheet('Share this game', '<input class="txt" readonly style="width:100%" value="' + esc(url) + '">');
+  }
+
   // ================================================================== start
+  if (/^#g=/.test(location.hash)) {
+    ui.shared = gameFromLink(location.hash.slice(3));
+    try { history.replaceState({ tab: 'review' }, '', '#review'); } catch (e) { /* file:// */ }
+  }
   const first = (location.hash || '').slice(1);
   try { history.replaceState({ tab: first || 'play' }, '', location.hash || '#play'); } catch (e) { /* file:// */ }
   showTab(first || 'play', false);
   if (store.game && !store.game.st.result) afterChange();
+  if (tour) {
+    if (store.game && store.game.guided && !store.game.st.result) tour.resume(); // carry on after a reload
+    else if (!store.game && !store.last && !store.online && P && !P.stats().games && !tour.seen() && (first || 'play') === 'play')
+      COACH.offer({ id: 'ck-first', title: 'New to checkers?', text: 'A guided first game against the Beginner computer, one step at a time.', yes: 'Teach me', no: 'No thanks', onYes: () => startGuided() });
+  }
   if (store.online) {
     ui.online = true; net.connecting = true; renderPlay();
     loadOnline().then(r => r.resume()).then(ok => {
@@ -1527,6 +1689,7 @@
   if (window.PWA) window.PWA.safeToReload = () => {
     if (ui.online || net.room || net.connecting || store.online) return false;
     if (layerOn() || $('#sheet') || ui.thinking || ui.anim || drag) return false;
+    if ((P && P.isOpen()) || (COACH && (COACH.rulesOpen() || (tour && store.game && store.game.guided && !store.game.st.result)))) return false;
     const f = document.activeElement;
     if (f && /^(INPUT|TEXTAREA|SELECT)$/.test(f.tagName)) return false;
     if (ui.tab === 'settings') return true;
