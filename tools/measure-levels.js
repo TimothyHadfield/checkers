@@ -20,8 +20,8 @@ function playGame(variant, la, lb, seed, aFirst) {
   const lvl = side => (aFirst === (side === 0) ? la : lb);
   let ply = 0;
   while (!st.result && ply < 220) {
-    const L1 = L.byId(lvl(st.turn));
-    const out = E.think(st, Object.assign({ seed: seed * 1000 + ply }, L1.opts));
+    // the same options the page uses (including the strong levels' opening variety)
+    const out = E.think(st, L.optsFor(lvl(st.turn), st, seed * 1000 + ply));
     st = R.act(st, st.turn, { path: out.move.path });
     ply++;
   }
